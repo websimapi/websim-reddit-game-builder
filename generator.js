@@ -2,7 +2,6 @@
 function getDependencies(features, engine = 'vanilla') {
     const deps = {
         "@devvit/public-api": "latest",
-        "@devvit/runtime": "latest",
         "react": "latest",
         "react-dom": "latest"
     };
@@ -31,7 +30,7 @@ function getPackageJson(config, deps) {
         dependencies: deps,
         devDependencies: {
             "devvit": "latest",
-            "typescript": "latest",
+            "typescript": "^5.0.0",
             "@types/react": "latest",
             "@types/react-dom": "latest",
             "esbuild": "latest" 
@@ -59,6 +58,7 @@ function getTsConfig() {
 // Generates the devvit.yaml
 function getDevvitYaml(slug) {
     return `name: ${slug}
+version: 0.0.1
 `;
 }
 
