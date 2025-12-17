@@ -3,8 +3,8 @@ function getDependencies(features, engine = 'vanilla') {
     // Using "latest" prevents 404 errors if specific versions are deprecated or missing from registry
     const deps = {
         "@devvit/public-api": "latest",
-        "react": "latest",
-        "react-dom": "latest"
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
     };
 
     // Note: @devvit/runtime is removed from explicit deps as it often causes 404s and is handled implicitly
@@ -41,8 +41,8 @@ function getPackageJson(config, deps) {
             "esbuild": "latest" 
         },
         "peerDependencies": {
-             "react": "latest",
-             "react-dom": "latest"
+             "react": "^18.2.0",
+             "react-dom": "^18.2.0"
         }
     }, null, 2);
 }
@@ -367,11 +367,6 @@ Devvit.addMenuItem({
         const post = await reddit.submitPost({
             title: ${safeTitle},
             subredditName: subreddit.name,
-            // The preview configuration is critical for custom posts
-            preview: {
-                title: ${safeTitle},
-                text: 'Loading game...',
-            }
         });
         
         ui.showToast("Game post created!");
