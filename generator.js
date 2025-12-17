@@ -2,7 +2,6 @@
 function getDependencies(features, engine = 'vanilla') {
     const deps = {
         "@devvit/public-api": "^0.10.0",
-        "@devvit/web": "^0.10.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0"
     };
@@ -50,7 +49,7 @@ function getTsConfig() {
             "checkJs": false,
             "strict": true,
             "noEmit": true,
-            "jsx": "react-jsx"
+            "jsx": "react"
         },
         "include": ["src/**/*"]
     }, null, 2);
