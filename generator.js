@@ -34,7 +34,7 @@ function getPackageJson(config, deps) {
         dependencies: deps,
         devDependencies: {
             "devvit": "latest",
-            "@devvit/public-api": "latest",
+            "@devvit/public-api": "^0.11.9",
             "typescript": "latest", 
             "@types/react": "latest",
             "@types/react-dom": "latest",
