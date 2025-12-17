@@ -2,9 +2,15 @@ export function generateProject(config) {
     const files = {};
     const { slug, title, engine, features } = config;
 
-    // --- 1. devvit.yaml (Replaces devvit.json) ---
+    // --- 1. devvit.yaml ---
+    // Removed explicit version to avoid schema validation errors in strict CLI environments
     files['devvit.yaml'] = `name: ${slug}
-version: 0.0.1
+`;
+
+    files['.gitignore'] = `node_modules
+.devvit
+dist
+.env
 `;
 
     // --- 2. package.json ---
@@ -25,6 +31,7 @@ version: 0.0.1
         main: "src/main.tsx",
         scripts: {
             "dev": "devvit playtest",
+            "setup": "devvit upload",
             "build": "devvit build",
             "upload": "devvit upload",
             "bridge": "node bridge.js" 
@@ -73,10 +80,36 @@ version: 0.0.1
 
 1. Unzip this folder.
 2. Open a terminal in this folder.
-3. Run \`npm install\` to install dependencies (including the devvit CLI).
-4. Run \`npm run dev\` to start the Devvit development environment.
-   - Note: If you don't have devvit installed globally, this uses the local version in node_modules.
-5. Open the link provided in the terminal (usually looks like https://reddit.com/r/subreddit?playtest=...).
+3. Run \`npm install\` to install dependencies.
+
+## First Time Setup
+
+If you see an error like **"Your app doesn't exist yet"**, it means you need to register this app slug ("${slug}") with Reddit.
+
+Run the setup command:
+\`\`\`bash
+npm run setup
+\`\`\`
+*(This runs \`devvit upload\`. Follow the prompts to authorize and create the app.)*
+
+## Development
+
+Once set up, run the playtest server:
+
+\`\`\`bash
+npm run dev
+\`\`\`
+
+- This runs \`devvit playtest\`.
+- Open the provided link in your browser to test your game.
+
+## Troubleshooting
+
+**Error: "App already initialized"**
+- This occurs if you try to run \`npx devvit init\`. You do **not** need to run init, as this project is already generated. Just use \`npm run setup\` or \`npm run dev\`.
+
+**Error: "Config is not allowed to have... version"**
+- This project uses a minimal \`devvit.yaml\` to avoid this error. If you encounter issues, ensure your CLI is up to date.
 
 ## Bridge
 The file \`bridge.js\` is included if you need a custom local server script, run it with \`npm run bridge\`.

@@ -4,6 +4,13 @@ import { ProjectZipper, saveAs } from './zip-utils.js';
 // State
 let selectedEngine = 'vanilla';
 
+// Initialize random slug to avoid collision errors
+const randomSuffix = Math.floor(Math.random() * 10000);
+const slugInput = document.getElementById('gameName');
+if (slugInput) {
+    slugInput.value = `my-reddit-game-${randomSuffix}`;
+}
+
 // UI Elements
 const engineOptions = document.querySelectorAll('#engineOptions .option-card');
 const generateBtn = document.getElementById('generateBtn');
