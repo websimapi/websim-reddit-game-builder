@@ -52,13 +52,14 @@ function getTsConfig() {
         "compilerOptions": {
             "target": "ES2020",
             "module": "ESNext",
-            "moduleResolution": "node",
+            "moduleResolution": "bundler",
             "lib": ["ES2020", "DOM", "DOM.Iterable"],
             "allowJs": true,
             "checkJs": false,
             "strict": true,
             "noEmit": true,
-            "jsx": "react-jsx"
+            "jsx": "react-jsx",
+            "jsxImportSource": "@devvit/public-api"
         },
         "include": ["src/**/*"]
     }, null, 2);
@@ -406,20 +407,30 @@ Devvit.addMenuItem({
         const { reddit, ui } = context;
         ui.showToast("Submitting your game post...");
 
-        const subreddit = await reddit.getCurrentSubreddit();
-        const post = await reddit.submitPost({
-            title: ${safeTitle},
-            subredditName: subreddit.name,
-            // The preview appears while the post loads and signals this is a custom post
-            preview: (
-                <vstack grow alignment="middle center">
-                    <text size="large">Loading Game...</text>
-                </vstack>
-            ),
-        });
-        
-        ui.showToast("Game post created!");
-        ui.navigateTo(post);
+        try {
+            const subreddit = await reddit.getCurrentSubreddit();
+            const currentSubredditName = subreddit.name;
+            console.log("Submitting to r/" + currentSubredditName);
+            console.log("Title:", ${safeTitle});
+
+            const post = await reddit.submitPost({
+                title: ${safeTitle},
+                subredditName: currentSubredditName,
+                // The preview appears while the post loads and signals this is a custom post
+                preview: (
+                    <vstack height="100%" width="100%" alignment="middle center">
+                        <text size="large">Loading Game...</text>
+                    </vstack>
+                ),
+            });
+            
+            console.log("Post created successfully:", post.id);
+            ui.showToast("Game post created!");
+            ui.navigateTo(post);
+        } catch (e) {
+            console.error("Failed to create post:", e);
+            ui.showToast("Failed to create post. Check logs.");
+        }
     },
 });
 
