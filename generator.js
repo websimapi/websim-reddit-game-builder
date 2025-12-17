@@ -1,13 +1,13 @@
 // Helper to get standard dependencies
 function getDependencies(features, engine = 'vanilla') {
     const deps = {
-        "@devvit/public-api": "0.11.0", // Pinning to a recent stable version can help stability
-        "@devvit/web": "0.11.0",
+        "@devvit/public-api": "^0.10.0",
+        "@devvit/web": "^0.10.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0"
     };
 
-    if (features.media) deps["@devvit/media"] = "0.11.0";
+    if (features.media) deps["@devvit/media"] = "^0.10.0";
     if (engine === 'phaser') deps["phaser"] = "^3.80.0";
     if (engine === 'three') deps["three"] = "^0.160.0";
     
@@ -30,7 +30,7 @@ function getPackageJson(config, deps) {
         },
         dependencies: deps,
         devDependencies: {
-            "devvit": "0.11.0",
+            "devvit": "^0.10.0",
             "typescript": "5.3.0",
             "@types/react": "18.2.0",
             "@types/react-dom": "18.2.0",
@@ -138,25 +138,29 @@ export function wrapProject(config, uploadedFiles) {
     // NOTE: Devvit expects webroot to be flat or configured. The simplest is putting everything in `webroot`.
     
     // Check if there is a single top-level directory and strip it if needed
-    // Simple heuristic: if every file starts with "folder/", strip "folder/"
-    const paths = Object.keys(uploadedFiles);
+    // Filter out system files first to get accurate paths
+    const validPaths = Object.keys(uploadedFiles).filter(p => !p.startsWith('__MACOSX') && !p.includes('.DS_Store'));
+    
     let commonPrefix = "";
-    const firstSlash = paths[0].indexOf('/');
-    if (firstSlash !== -1) {
-        const potentialPrefix = paths[0].substring(0, firstSlash + 1);
-        if (paths.every(p => p.startsWith(potentialPrefix))) {
-            commonPrefix = potentialPrefix;
+    if (validPaths.length > 0) {
+        const firstSlash = validPaths[0].indexOf('/');
+        if (firstSlash !== -1) {
+            const potentialPrefix = validPaths[0].substring(0, firstSlash + 1);
+            if (validPaths.every(p => p.startsWith(potentialPrefix))) {
+                commonPrefix = potentialPrefix;
+            }
         }
     }
 
     // Copy files
     for (const [path, content] of Object.entries(uploadedFiles)) {
+        // Skip system files
+        if (path.startsWith('__MACOSX') || path.includes('.DS_Store')) continue;
+
         let cleanPath = path;
         if (commonPrefix && path.startsWith(commonPrefix)) {
             cleanPath = path.substring(commonPrefix.length);
         }
-        // Skip dotfiles or MacOS crap
-        if (cleanPath.startsWith('__MACOSX') || cleanPath.includes('.DS_Store')) continue;
         
         files[`webroot/${cleanPath}`] = content;
     }
