@@ -30,10 +30,10 @@ function getPackageJson(config, deps) {
         dependencies: deps,
         devDependencies: {
             "devvit": "^0.10.0",
-            "typescript": "5.3.0",
-            "@types/react": "18.2.0",
-            "@types/react-dom": "18.2.0",
-            "esbuild": "0.19.0" 
+            "typescript": "^5.0.0",
+            "@types/react": "^18.2.0",
+            "@types/react-dom": "^18.2.0",
+            "esbuild": "^0.19.0" 
         }
     }, null, 2);
 }
@@ -49,7 +49,7 @@ function getTsConfig() {
             "checkJs": false,
             "strict": true,
             "noEmit": true,
-            "jsx": "react"
+            "jsx": "react-jsx"
         },
         "include": ["src/**/*"]
     }, null, 2);
@@ -58,7 +58,6 @@ function getTsConfig() {
 // Generates the devvit.yaml
 function getDevvitYaml(slug) {
     return `name: ${slug}
-version: 0.0.1
 `;
 }
 
