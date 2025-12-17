@@ -1,16 +1,17 @@
 // Helper to get standard dependencies
 function getDependencies(features, engine = 'vanilla') {
+    // Using "*" or specific ranges avoids "No matching version" errors for peer deps
     const deps = {
-        "@devvit/public-api": "latest",
-        "react": "latest",
-        "react-dom": "latest"
+        "@devvit/public-api": "^0.10.0", 
+        "@devvit/runtime": "^0.10.0",
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0"
     };
 
-    if (features.media) deps["@devvit/media"] = "latest";
-    if (features.multiplayer) deps["@devvit/realtime"] = "latest";
+    if (features.media) deps["@devvit/media"] = "^0.10.0";
+    if (features.multiplayer) deps["@devvit/realtime"] = "^0.10.0";
     
-    // We keep these in package.json for reference, 
-    // but client-side they are handled via Import Maps
+    // We keep these in package.json for reference
     if (engine === 'phaser') deps["phaser"] = "latest";
     if (engine === 'three') deps["three"] = "latest";
     
@@ -33,11 +34,15 @@ function getPackageJson(config, deps) {
         },
         dependencies: deps,
         devDependencies: {
-            "devvit": "latest",
-            "typescript": "latest",
-            "@types/react": "latest",
-            "@types/react-dom": "latest",
+            "devvit": "^0.10.0",
+            "typescript": "5.3.3", 
+            "@types/react": "^18.0.0",
+            "@types/react-dom": "^18.0.0",
             "esbuild": "latest" 
+        },
+        "peerDependencies": {
+             "react": "^18.0.0",
+             "react-dom": "^18.0.0"
         }
     }, null, 2);
 }
@@ -224,20 +229,9 @@ export function wrapProject(config, uploadedFiles) {
     files['bridge.js'] = `console.log("Bridge connected for ${slug}!");`;
 
     // Server Code
-    // Determine the entry filename relative to webroot
-    let relativeEntry = 'index.html';
-    if (entryPath && rootPrefix) {
-        relativeEntry = entryPath.substring(rootPrefix.length);
-    } else if (entryPath) {
-        relativeEntry = entryPath;
-    }
-    
-    // Ensure no leading slash in the URL
-    if (relativeEntry.startsWith('/')) {
-        relativeEntry = relativeEntry.substring(1);
-    }
-    
-    files['src/main.tsx'] = generateServerCode(config, relativeEntry);
+    // Force entry file to be exactly 'index.html' in the webroot for simplicity
+    // The previous logic handled paths, but for Devvit WebViews, keeping the entry at root is safest.
+    files['src/main.tsx'] = generateServerCode(config, 'index.html');
 
     // --- 3. Inject Helpers (Import Map, Viewport, CSS) ---
 
@@ -277,7 +271,9 @@ export function wrapProject(config, uploadedFiles) {
              processedIndexHtml = injectInHead(processedIndexHtml, cssReset);
         }
         
-        webRootFiles[relativeEntry] = encoder.encode(processedIndexHtml);
+        // ALWAYS save the main entry as index.html in the root of the webroot
+        // This ensures the webview url="index.html" always finds it.
+        webRootFiles['index.html'] = encoder.encode(processedIndexHtml);
     }
 
     // 4. Finalize webroot
@@ -337,8 +333,10 @@ export function generateProject(config) {
 }
 
 function generateServerCode(config, entryFile = 'index.html') {
+    // Ensure entryFile is simple
+    const webViewUrl = entryFile.split('/').pop(); 
+    
     return `import { Devvit, useState } from '@devvit/public-api';
-import React from 'react';
 
 Devvit.configure({
     redditAPI: true,
@@ -357,41 +355,37 @@ Devvit.addMenuItem({
         ui.showToast("Submitting your game post...");
 
         const subreddit = await reddit.getCurrentSubreddit();
-        await reddit.submitPost({
+        const post = await reddit.submitPost({
             title: '${config.title}',
             subredditName: subreddit.name,
         });
-
+        
         ui.showToast("Game post created!");
+        ui.navigateTo(post);
     },
 });
 
+// Custom Post Type definition
 Devvit.addCustomPostType({
-    name: '${config.title}',
-    height: 'tall',
+    name: '${config.title}', // Matches the display title
+    height: 'tall', // Forces 1:1 aspect ratio roughly, or tall vertical
     render: (context) => {
         return (
-            <vstack grow>
-                <zstack grow>
-                    <vstack width="100%" height="100%" alignment="center middle">
-                        <text>Loading Game...</text>
-                    </vstack>
-                    <webview
-                        id="game-view"
-                        url="${entryFile}"
-                        grow
-                        onMessage={async (msg) => {
-                            const data = msg as any;
-                            // Basic Bridge for Features
-                            if (data.type === 'get-config') {
-                                context.ui.webView.postMessage('game-view', {
-                                    type: 'config',
-                                    payload: { title: "${config.title}" }
-                                });
-                            }
-                        }}
-                    />
-                </zstack>
+            <vstack grow height="100%">
+                <webview
+                    id="game-view"
+                    url="${webViewUrl}"
+                    grow
+                    onMessage={async (msg) => {
+                        const data = msg as any;
+                        if (data.type === 'get-config') {
+                            context.ui.webView.postMessage('game-view', {
+                                type: 'config',
+                                payload: { title: "${config.title}" }
+                            });
+                        }
+                    }}
+                />
             </vstack>
         );
     }
