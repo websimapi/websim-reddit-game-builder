@@ -42,7 +42,11 @@ export function generateProject(config) {
             "upload": "devvit upload",
             "bridge": "node bridge.js" 
         },
-        dependencies: deps
+        dependencies: deps,
+        devDependencies: {
+            "devvit": "latest",
+            "typescript": "latest"
+        }
     };
     files['package.json'] = JSON.stringify(pkgJson, null, 2);
 
@@ -82,8 +86,9 @@ export function generateProject(config) {
 
 1. Unzip this folder.
 2. Open a terminal in this folder.
-3. Run \`npm install\` to install dependencies.
+3. Run \`npm install\` to install dependencies (including the devvit CLI).
 4. Run \`npm run dev\` to start the Devvit development environment.
+   - Note: If you don't have devvit installed globally, this uses the local version in node_modules.
 5. Open the link provided in the terminal (usually looks like https://reddit.com/r/subreddit?playtest=...).
 
 ## Bridge
@@ -102,7 +107,7 @@ console.log("Run 'npm run dev' to start the actual Devvit app.");
 function generateServerCode(config) {
     const imports = [
         `import { Devvit } from '@devvit/public-api';`,
-        `import { context, redis } from '@devvit/web/server';`
+        `import { context, redis, cache } from '@devvit/web/server';`
     ];
     
     if (config.features.media) imports.push(`import { media } from '@devvit/media';`);
@@ -110,9 +115,14 @@ function generateServerCode(config) {
     let endpointCode = `
 // Basic Configuration Endpoint
 context.app.get('/api/config', async (req, res) => {
+    // Examples of using settings (configure these in your app settings page)
+    const maxPlayers = await context.settings.get('maxPlayers') || 100;
+    const difficulty = await context.settings.get('difficulty') || 'normal';
+
     res.json({ 
         gameTitle: "${config.title}",
-        maxPlayers: 100 
+        maxPlayers,
+        difficulty
     });
 });
 `;
@@ -136,12 +146,17 @@ context.app.post('/api/submit-score', async (req, res) => {
     res.json({ success: true, rank });
 });
 
-// Leaderboard: Get Top Scores
+// Leaderboard: Get Top Scores (Cached)
 context.app.get('/api/leaderboard', async (req, res) => {
-    const scores = await redis.zRange('global_leaderboard', 0, 9, { 
-        reverse: true, 
-        withScores: true 
-    });
+    const scores = await cache(
+        async () => {
+            return await redis.zRange('global_leaderboard', 0, 9, { 
+                reverse: true, 
+                withScores: true 
+            });
+        },
+        { key: 'leaderboard-top-10', ttl: 30 } // Cache for 30s
+    );
     res.json(scores);
 });
 `;
