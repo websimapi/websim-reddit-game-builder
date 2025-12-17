@@ -16,7 +16,8 @@ dist
     // --- 2. package.json ---
     const deps = {
         "@devvit/public-api": "latest",
-        "@devvit/web": "latest"
+        "@devvit/web": "latest",
+        "react": "latest"
     };
 
     if (features.media) deps["@devvit/media"] = "latest";
@@ -39,7 +40,8 @@ dist
         dependencies: deps,
         devDependencies: {
             "devvit": "latest",
-            "typescript": "latest"
+            "typescript": "latest",
+            "@types/react": "latest"
         }
     };
     files['package.json'] = JSON.stringify(pkgJson, null, 2);
