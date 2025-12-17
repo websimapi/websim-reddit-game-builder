@@ -201,47 +201,54 @@ export function wrapProject(config, uploadedFiles) {
     console.log(`Original Entry Point: "${entryPath}"`);
     console.log(`Final Webroot Entry: "${finalEntryPath}"`);
 
+    // 2a. First pass: Analyze all files (Scan for imports/engine)
     for (const [path, content] of Object.entries(uploadedFiles)) {
-        // Skip invalid
         if (!validPaths.includes(path)) continue;
 
-        // Strip prefix
+        const lowerPath = path.toLowerCase();
+        // Check if likely text for analysis
+        if (lowerPath.match(/\.(js|mjs|jsx|tsx|html|htm|css|json)$/)) {
+            try {
+                const text = decoder.decode(content);
+                const imports = scanForImports(text);
+                imports.forEach(i => detectedImports.add(i));
+                
+                if (imports.some(i => i.toLowerCase().includes('phaser'))) detectedEngine = 'phaser';
+                if (imports.some(i => i.toLowerCase().includes('three'))) detectedEngine = 'three';
+                if (imports.some(i => i.toLowerCase().includes('kaboom'))) detectedEngine = 'kaboom';
+            } catch (e) { /* ignore analysis errors */ }
+        }
+    }
+
+    console.log(`✅ Detected Engine: ${detectedEngine}`);
+
+    // 2b. Second pass: Process and move files to Webroot
+    for (const [path, content] of Object.entries(uploadedFiles)) {
+        if (!validPaths.includes(path)) continue;
+
+        // Determine relative path in webroot
         let relativePath = path;
         if (path.startsWith(rootPrefix)) {
             relativePath = path.substring(rootPrefix.length);
         }
 
         const isEntry = path === entryPath;
-        const lowerPath = path.toLowerCase();
         
-        // Try decoding text files for analysis
-        const isTextFile = lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.jsx') 
-            || lowerPath.endsWith('.html') || lowerPath.endsWith('.htm') || lowerPath.endsWith('.css') || lowerPath.endsWith('.json');
-
-        if (isTextFile) {
+        // If it is the entry point, we decode it to inject scripts later
+        if (isEntry) {
             try {
-                const text = decoder.decode(content);
-                
-                // Scan imports
-                if (lowerPath.match(/\.(js|mjs|jsx|tsx|html|htm)$/)) {
-                    const imports = scanForImports(text);
-                    if (imports.length > 0) imports.forEach(i => detectedImports.add(i));
-
-                    if (imports.some(i => i.toLowerCase().includes('phaser'))) detectedEngine = 'phaser';
-                    if (imports.some(i => i.toLowerCase().includes('three'))) detectedEngine = 'three';
-                    if (imports.some(i => i.toLowerCase().includes('kaboom'))) detectedEngine = 'kaboom';
-                }
-
-                // Intercept Entry File
-                if (isEntry) {
-                    processedIndexHtml = text;
-                    continue; // Don't write yet, we will modify it
-                }
+                processedIndexHtml = decoder.decode(content);
+                // We do NOT add it to webRootFiles here, we add the modified version later
+                continue; 
             } catch (e) {
-                console.warn(`Failed to analyze ${path}`, e);
+                console.error("Error decoding entry file", e);
+                // If decoding fails, just treat as binary and add as is
+                webRootFiles[relativePath] = content;
+                continue;
             }
         }
 
+        // Add standard file
         webRootFiles[relativePath] = content;
     }
     
@@ -288,12 +295,14 @@ export function wrapProject(config, uploadedFiles) {
         if (!processedIndexHtml.includes('name="viewport"')) processedIndexHtml = injectInHead(processedIndexHtml, viewportMeta);
         if (!processedIndexHtml.includes('overflow: hidden')) processedIndexHtml = injectInHead(processedIndexHtml, cssReset);
         
-        // Write modified entry file to its CORRECT location (preserving structure)
+        // Write modified entry file to its CORRECT location
         webRootFiles[finalEntryPath] = encoder.encode(processedIndexHtml);
     } else {
-        // Fallback: Generate a simple index.html if none exists
-        const fallbackHTML = `<!DOCTYPE html><html><body><h1>${title}</h1><p>No index.html found.</p></body></html>`;
-        webRootFiles['index.html'] = encoder.encode(fallbackHTML);
+        // Fallback: Only generate if we don't have an entry file already (e.g. if decode failed but file exists, don't overwrite)
+        if (!webRootFiles[finalEntryPath]) {
+            const fallbackHTML = `<!DOCTYPE html><html><body><h1>${title}</h1><p>No index.html found. Please check your zip structure.</p></body></html>`;
+            webRootFiles['index.html'] = encoder.encode(fallbackHTML);
+        }
     }
 
     for (const [path, content] of Object.entries(webRootFiles)) {

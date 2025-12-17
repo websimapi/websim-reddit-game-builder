@@ -145,7 +145,7 @@ export async function fetchProjectAssets(projectId, version) {
 }
 
 // Converts WebSim asset list to the format expected by the generator { "path/to/file": Uint8Array }
-export function processAssets(assetList) {
+export async function processAssets(assetList) {
     const files = {};
     const encoder = new TextEncoder();
 
@@ -154,26 +154,42 @@ export function processAssets(assetList) {
         return files;
     }
 
-    for (const asset of assetList) {
-        if (!asset.path) continue;
+    const promises = assetList.map(async (asset) => {
+        if (!asset.path) return;
         
         // Ensure path doesn't start with slash (normalize)
-        // Remove all leading slashes and ./
         const path = asset.path.replace(/^(\.|\/)+/, '');
         
-        let content = asset.content;
-        
-        if (typeof content === 'string') {
-            files[path] = encoder.encode(content);
-        } else if (content) {
-            // If it's already structured or binary, try to stringify
-            files[path] = encoder.encode(JSON.stringify(content));
-        } else {
-            // Handle empty content or binary placeholders
-            files[path] = new Uint8Array(0);
+        // Case 1: Direct String Content (Text files)
+        if (typeof asset.content === 'string') {
+            files[path] = encoder.encode(asset.content);
+            return;
         }
-    }
-    
+        
+        // Case 2: URL to fetch (Binary/Media assets often provided as URL)
+        if (!asset.content && asset.url) {
+            try {
+                const res = await fetch(asset.url);
+                const blob = await res.arrayBuffer();
+                files[path] = new Uint8Array(blob);
+            } catch (e) {
+                console.warn(`Failed to fetch asset ${path}`, e);
+                files[path] = new Uint8Array(0);
+            }
+            return;
+        }
+
+        // Case 3: Object content (JSON structure)
+        if (asset.content && typeof asset.content === 'object') {
+            files[path] = encoder.encode(JSON.stringify(asset.content));
+            return;
+        }
+
+        // Fallback for missing content
+        files[path] = new Uint8Array(0);
+    });
+
+    await Promise.all(promises);
     return files;
 }
 

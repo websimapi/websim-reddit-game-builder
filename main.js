@@ -91,7 +91,7 @@ fetchWebsimBtn.addEventListener('click', async () => {
         if (!rawAssets || !Array.isArray(rawAssets)) throw new Error("No assets found.");
 
         // Process assets into standard format
-        uploadedZipFiles = processAssets(rawAssets);
+        uploadedZipFiles = await processAssets(rawAssets);
         
         websimStatus.textContent = `Successfully loaded ${Object.keys(uploadedZipFiles).length} files! Ready to generate.`;
         websimStatus.style.color = "#4CAF50";
