@@ -1,10 +1,13 @@
-import { generateProject } from './generator.js';
+import { generateProject, wrapProject } from './generator.js';
 import { ProjectZipper, saveAs } from './zip-utils.js';
+import JSZip from 'jszip';
 
 // State
 let selectedEngine = 'vanilla';
+let mode = 'upload'; // 'upload' or 'template'
+let uploadedZipFiles = null; // Stores extracted file data: { path: content }
 
-// Initialize random slug to avoid collision errors
+// Initialize random slug
 const randomSuffix = Math.floor(Math.random() * 10000);
 const slugInput = document.getElementById('gameName');
 if (slugInput) {
@@ -15,19 +18,127 @@ if (slugInput) {
 const engineOptions = document.querySelectorAll('#engineOptions .option-card');
 const generateBtn = document.getElementById('generateBtn');
 const statusDiv = document.getElementById('status');
+const tabBtns = document.querySelectorAll('.tab-btn');
+const tabContents = document.querySelectorAll('.tab-content');
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('fileInput');
+const browseBtn = document.getElementById('browseBtn');
+const fileInfo = document.getElementById('file-info');
+const filenameDisplay = document.getElementById('filename');
+const removeFileBtn = document.getElementById('removeFile');
 
-// Handle Engine Selection
+// --- Tab Handling ---
+tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        // Switch visuals
+        tabBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        tabContents.forEach(c => c.classList.add('hidden'));
+        const target = document.getElementById(`tab-${btn.dataset.tab}`);
+        target.classList.remove('hidden');
+
+        // Switch State
+        mode = btn.dataset.tab;
+        updateGenerateButtonState();
+    });
+});
+
+// --- Engine Selection ---
 engineOptions.forEach(card => {
     card.addEventListener('click', () => {
-        // Remove active class from all
         engineOptions.forEach(c => c.classList.remove('selected'));
-        // Add to clicked
         card.classList.add('selected');
         selectedEngine = card.dataset.value;
     });
 });
 
-// Handle Generation
+// --- Drag & Drop / File Handling ---
+browseBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+});
+
+dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('drag-over');
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) {
+        handleFile(e.dataTransfer.files[0]);
+    }
+});
+
+removeFileBtn.addEventListener('click', () => {
+    uploadedZipFiles = null;
+    dropZone.querySelector('.drop-content').classList.remove('hidden');
+    fileInfo.classList.add('hidden');
+    fileInput.value = '';
+    updateGenerateButtonState();
+});
+
+async function handleFile(file) {
+    if (!file || !file.name.endsWith('.zip')) {
+        alert("Please upload a .zip file.");
+        return;
+    }
+
+    statusDiv.textContent = "Reading zip file...";
+    
+    try {
+        const zip = await JSZip.loadAsync(file);
+        const files = {};
+        
+        // Extract all files
+        let hasIndexHtml = false;
+        
+        const promises = [];
+        zip.forEach((relativePath, zipEntry) => {
+            if (!zipEntry.dir) {
+                if (relativePath.includes('index.html')) hasIndexHtml = true;
+                
+                // Store promise to read file
+                const promise = zipEntry.async('uint8array').then(content => {
+                    files[relativePath] = content;
+                });
+                promises.push(promise);
+            }
+        });
+
+        await Promise.all(promises);
+
+        if (!hasIndexHtml) {
+            alert("The .zip file must contain an index.html file.");
+            statusDiv.textContent = "";
+            return;
+        }
+
+        uploadedZipFiles = files;
+        
+        // Update UI
+        dropZone.querySelector('.drop-content').classList.add('hidden');
+        fileInfo.classList.remove('hidden');
+        filenameDisplay.textContent = file.name;
+        statusDiv.textContent = "File ready. Click Download to convert.";
+        
+    } catch (e) {
+        console.error(e);
+        alert("Error reading .zip file.");
+        statusDiv.textContent = "";
+    }
+}
+
+function updateGenerateButtonState() {
+    // Optional: disable button if in upload mode but no file
+}
+
+// --- Generation ---
 generateBtn.addEventListener('click', async () => {
     const config = {
         slug: document.getElementById('gameName').value || 'my-game',
@@ -40,11 +151,20 @@ generateBtn.addEventListener('click', async () => {
         }
     };
 
-    statusDiv.textContent = "Generating project...";
+    if (mode === 'upload' && !uploadedZipFiles) {
+        alert("Please upload a .zip file first.");
+        return;
+    }
+
+    statusDiv.textContent = mode === 'upload' ? " converting project..." : "Generating project...";
     
     try {
-        // 1. Generate file content
-        const files = generateProject(config);
+        let files;
+        if (mode === 'upload') {
+            files = wrapProject(config, uploadedZipFiles);
+        } else {
+            files = generateProject(config);
+        }
 
         // 2. Zip it
         const zipper = new ProjectZipper();

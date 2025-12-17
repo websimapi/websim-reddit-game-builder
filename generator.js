@@ -1,34 +1,24 @@
-export function generateProject(config) {
-    const files = {};
-    const { slug, title, engine, features } = config;
-
-    // --- 1. devvit.yaml ---
-    // Removed explicit version to avoid schema validation errors in strict CLI environments
-    files['devvit.yaml'] = `name: ${slug}
-`;
-
-    files['.gitignore'] = `node_modules
-.devvit
-dist
-.env
-`;
-
-    // --- 2. package.json ---
+// Helper to get standard dependencies
+function getDependencies(features, engine = 'vanilla') {
     const deps = {
-        "@devvit/public-api": "latest",
-        "@devvit/web": "latest",
+        "@devvit/public-api": "0.11.0", // Pinning to a recent stable version can help stability
+        "@devvit/web": "0.11.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0"
     };
 
-    if (features.media) deps["@devvit/media"] = "latest";
+    if (features.media) deps["@devvit/media"] = "0.11.0";
     if (engine === 'phaser') deps["phaser"] = "^3.80.0";
     if (engine === 'three') deps["three"] = "^0.160.0";
+    
+    return deps;
+}
 
-    const pkgJson = {
-        name: slug,
+function getPackageJson(config, deps) {
+    return JSON.stringify({
+        name: config.slug,
         version: "0.0.1",
-        description: `A Reddit game: ${title}`,
+        description: `A Reddit game: ${config.title}`,
         type: "module",
         main: "src/main.tsx",
         scripts: {
@@ -40,15 +30,17 @@ dist
         },
         dependencies: deps,
         devDependencies: {
-            "devvit": "latest",
-            "typescript": "latest",
-            "@types/react": "latest"
+            "devvit": "0.11.0",
+            "typescript": "5.3.0",
+            "@types/react": "18.2.0",
+            "@types/react-dom": "18.2.0",
+            "esbuild": "0.19.0" 
         }
-    };
-    files['package.json'] = JSON.stringify(pkgJson, null, 2);
+    }, null, 2);
+}
 
-    // --- 3. tsconfig.json ---
-    files['tsconfig.json'] = JSON.stringify({
+function getTsConfig() {
+    return JSON.stringify({
         "compilerOptions": {
             "target": "ES2020",
             "module": "ESNext",
@@ -58,26 +50,22 @@ dist
             "checkJs": false,
             "strict": true,
             "noEmit": true,
-            "jsx": "react"
+            "jsx": "react-jsx"
         },
         "include": ["src/**/*"]
     }, null, 2);
+}
 
+// Generates the devvit.yaml
+function getDevvitYaml(slug) {
+    return `name: ${slug}
+version: 0.0.1
+`;
+}
 
-    // --- 4. Server Code (src/main.tsx) ---
-    files['src/main.tsx'] = generateServerCode(config);
-
-    // --- 5. Client HTML (src/webroot/index.html) ---
-    // Note: Devvit expects web assets in a 'webroot' folder or configured path. 
-    // We'll put them in src/webroot and user can configure vite if needed, 
-    // but for simple playtest, putting them alongside might be easier.
-    // For now, let's keep it simple.
-    files['webroot/index.html'] = generateClientHTML(config);
-    files['webroot/client.js'] = generateClientJS(config);
-    files['webroot/style.css'] = generateClientCSS(config);
-
-    // --- 8. Bridge / README ---
-    files['README.md'] = `# ${title}
+// Generates the standard README
+function getReadme(slug, title) {
+    return `# ${title}
 
 ## Getting Started
 
@@ -118,18 +106,91 @@ npm run dev
 ## Bridge
 The file \`bridge.js\` is included if you need a custom local server script, run it with \`npm run bridge\`.
 `;
+}
 
-    files['bridge.js'] = `
-// This is a simple bridge script if you need to run local tasks
-console.log("Bridge connected for ${slug}!");
-console.log("Run 'npm run dev' to start the actual Devvit app.");
-`;
+export function wrapProject(config, uploadedFiles) {
+    const files = {};
+    const { slug, title, features } = config;
+
+    // Standard Devvit Files
+    files['devvit.yaml'] = getDevvitYaml(slug);
+    files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
+    files['tsconfig.json'] = getTsConfig();
+    
+    // Package.json - General deps since we don't know the engine
+    const deps = getDependencies(features, 'vanilla');
+    files['package.json'] = getPackageJson(config, deps);
+
+    // README
+    files['README.md'] = getReadme(slug, title);
+
+    // Bridge
+    files['bridge.js'] = `console.log("Bridge connected for ${slug}!");`;
+
+    // Server Code (src/main.tsx)
+    // For wrapped projects, we assume 'index.html' is the entry point
+    files['src/main.tsx'] = generateServerCode(config, 'index.html');
+
+    // Content
+    // We need to place uploaded files into 'webroot'.
+    // If the zip has a root folder (e.g. game/index.html), we might want to flatten it,
+    // but for safety, we'll just put everything in webroot and locate index.html.
+    // NOTE: Devvit expects webroot to be flat or configured. The simplest is putting everything in `webroot`.
+    
+    // Check if there is a single top-level directory and strip it if needed
+    // Simple heuristic: if every file starts with "folder/", strip "folder/"
+    const paths = Object.keys(uploadedFiles);
+    let commonPrefix = "";
+    const firstSlash = paths[0].indexOf('/');
+    if (firstSlash !== -1) {
+        const potentialPrefix = paths[0].substring(0, firstSlash + 1);
+        if (paths.every(p => p.startsWith(potentialPrefix))) {
+            commonPrefix = potentialPrefix;
+        }
+    }
+
+    // Copy files
+    for (const [path, content] of Object.entries(uploadedFiles)) {
+        let cleanPath = path;
+        if (commonPrefix && path.startsWith(commonPrefix)) {
+            cleanPath = path.substring(commonPrefix.length);
+        }
+        // Skip dotfiles or MacOS crap
+        if (cleanPath.startsWith('__MACOSX') || cleanPath.includes('.DS_Store')) continue;
+        
+        files[`webroot/${cleanPath}`] = content;
+    }
+    
+    return files;
+}
+
+export function generateProject(config) {
+    const files = {};
+    const { slug, title, engine, features } = config;
+
+    files['devvit.yaml'] = getDevvitYaml(slug);
+    files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
+    
+    const deps = getDependencies(features, engine);
+    files['package.json'] = getPackageJson(config, deps);
+    files['tsconfig.json'] = getTsConfig();
+
+    // Server Code
+    files['src/main.tsx'] = generateServerCode(config, 'index.html');
+
+    // Client Code (Generated)
+    files['webroot/index.html'] = generateClientHTML(config);
+    files['webroot/client.js'] = generateClientJS(config);
+    files['webroot/style.css'] = generateClientCSS(config);
+
+    // Misc
+    files['README.md'] = getReadme(slug, title);
+    files['bridge.js'] = `console.log("Bridge connected for ${slug}!");`;
 
     return files;
 }
 
-function generateServerCode(config) {
-    // Generate valid Devvit Main Entry
+function generateServerCode(config, entryFile = 'index.html') {
     return `import { Devvit, useState } from '@devvit/public-api';
 import React from 'react';
 
@@ -173,7 +234,7 @@ Devvit.addCustomPostType({
             <vstack height="100%" width="100%">
                 <webview
                     id="game-view"
-                    url="index.html"
+                    url="${entryFile}"
                     height="100%"
                     width="100%"
                     onMessage={async (msg) => {
@@ -185,7 +246,6 @@ Devvit.addCustomPostType({
                                 payload: { title: "${config.title}" }
                             });
                         }
-                        // Add more handlers here for leaderboard/redis
                     }}
                 />
             </vstack>

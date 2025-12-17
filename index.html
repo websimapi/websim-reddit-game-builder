@@ -37,19 +37,45 @@
             </section>
 
             <section class="config-card">
-                <h2>2. Engine & Type</h2>
-                <div class="grid-options" id="engineOptions">
-                    <div class="option-card selected" data-value="vanilla">
-                        <h3>DOM / Vanilla JS</h3>
-                        <p>Best for UI-based games, quizzes, and idle games.</p>
+                <h2>2. Project Source</h2>
+                <div class="tabs">
+                    <button class="tab-btn active" data-tab="upload">Upload .ZIP</button>
+                    <button class="tab-btn" data-tab="template">Use Template</button>
+                </div>
+
+                <!-- Upload Tab -->
+                <div id="tab-upload" class="tab-content active">
+                    <div id="drop-zone" class="drop-zone">
+                        <div class="drop-content">
+                            <span class="icon-large">📦</span>
+                            <p><strong>Drag & Drop your game .zip here</strong></p>
+                            <p class="sub-text">Must contain an index.html file at the root or in a folder.</p>
+                            <input type="file" id="fileInput" accept=".zip" style="display: none;">
+                            <button id="browseBtn" class="secondary-btn">Browse Files</button>
+                        </div>
+                        <div id="file-info" class="hidden">
+                            <span class="icon-file">📄</span>
+                            <span id="filename">game.zip</span>
+                            <button id="removeFile" class="text-btn">✕</button>
+                        </div>
                     </div>
-                    <div class="option-card" data-value="phaser">
-                        <h3>Phaser.js</h3>
-                        <p>2D Game Engine. Best for platformers, RPGs, and arcade games.</p>
-                    </div>
-                    <div class="option-card" data-value="three">
-                        <h3>Three.js</h3>
-                        <p>3D Library. Best for 3D environments and visualizations.</p>
+                </div>
+
+                <!-- Template Tab -->
+                <div id="tab-template" class="tab-content hidden">
+                    <div class="grid-options" id="engineOptions">
+                        <div class="option-card selected" data-value="vanilla">
+                            <h3>DOM / Vanilla JS</h3>
+                            <p>Best for UI-based games, quizzes, and idle games.</p>
+                        </div>
+                        <div class="option-card" data-value="phaser">
+                            <h3>Phaser.js</h3>
+                            <p>2D Game Engine. Best for platformers, RPGs, and arcade games.</p>
+                        </div>
+                        <div class="option-card" data-value="three">
+                            <h3>Three.js</h3>
+                            <p>3D Library. Best for 3D environments and visualizations.</p>
+                        </div>
                     </div>
                 </div>
             </section>
