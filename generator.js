@@ -52,7 +52,7 @@ function getTsConfig() {
         "compilerOptions": {
             "target": "ES2020",
             "module": "ESNext",
-            "moduleResolution": "bundler",
+            "moduleResolution": "node",
             "lib": ["ES2020", "DOM", "DOM.Iterable"],
             "allowJs": true,
             "checkJs": false,
@@ -141,7 +141,17 @@ export function wrapProject(config, uploadedFiles) {
 
     // --- 1. Analyze Content & Paths ---
     
-    const validPaths = Object.keys(uploadedFiles).filter(p => !p.startsWith('__MACOSX') && !p.includes('.DS_Store') && !p.includes('._'));
+    // Normalize paths (remove leading slashes) & Filter junk
+    const sanitizedFiles = {};
+    Object.entries(uploadedFiles).forEach(([p, content]) => {
+        // Remove leading ./ or /
+        const cleanPath = p.replace(/^(\.|\/)+/, '');
+        if (!cleanPath.startsWith('__MACOSX') && !cleanPath.includes('.DS_Store') && !cleanPath.includes('._') && cleanPath.length > 0) {
+            sanitizedFiles[cleanPath] = content;
+        }
+    });
+
+    const validPaths = Object.keys(sanitizedFiles);
     
     // Find Entry Point (prioritize index.html)
     const indexFiles = validPaths.filter(p => p.toLowerCase().endsWith('index.html') || p.toLowerCase().endsWith('index.htm'));
@@ -202,9 +212,7 @@ export function wrapProject(config, uploadedFiles) {
     console.log(`Final Webroot Entry: "${finalEntryPath}"`);
 
     // 2a. First pass: Analyze all files (Scan for imports/engine)
-    for (const [path, content] of Object.entries(uploadedFiles)) {
-        if (!validPaths.includes(path)) continue;
-
+    for (const [path, content] of Object.entries(sanitizedFiles)) {
         const lowerPath = path.toLowerCase();
         // Check if likely text for analysis
         if (lowerPath.match(/\.(js|mjs|jsx|tsx|html|htm|css|json)$/)) {
@@ -223,9 +231,7 @@ export function wrapProject(config, uploadedFiles) {
     console.log(`✅ Detected Engine: ${detectedEngine}`);
 
     // 2b. Second pass: Process and move files to Webroot
-    for (const [path, content] of Object.entries(uploadedFiles)) {
-        if (!validPaths.includes(path)) continue;
-
+    for (const [path, content] of Object.entries(sanitizedFiles)) {
         // Determine relative path in webroot
         let relativePath = path;
         if (path.startsWith(rootPrefix)) {
@@ -406,7 +412,7 @@ Devvit.addMenuItem({
             subredditName: subreddit.name,
             // The preview appears while the post loads and signals this is a custom post
             preview: (
-                <vstack height="100%" width="100%" alignment="middle center">
+                <vstack grow alignment="middle center">
                     <text size="large">Loading Game...</text>
                 </vstack>
             ),
