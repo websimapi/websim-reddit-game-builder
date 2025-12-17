@@ -1,18 +1,17 @@
 // Helper to get standard dependencies
 function getDependencies(features, engine = 'vanilla') {
     const deps = {
-        "@devvit/public-api": "*",
-        "@devvit/runtime": "*",
-        "react": "*",
-        "react-dom": "*"
+        "@devvit/public-api": "latest",
+        "react": "latest",
+        "react-dom": "latest"
     };
 
-    if (features.media) deps["@devvit/media"] = "*";
+    if (features.media) deps["@devvit/media"] = "latest";
     
     // We keep these in package.json for reference, 
     // but client-side they are handled via Import Maps
-    if (engine === 'phaser') deps["phaser"] = "*";
-    if (engine === 'three') deps["three"] = "*";
+    if (engine === 'phaser') deps["phaser"] = "latest";
+    if (engine === 'three') deps["three"] = "latest";
     
     return deps;
 }
@@ -33,11 +32,11 @@ function getPackageJson(config, deps) {
         },
         dependencies: deps,
         devDependencies: {
-            "devvit": "*",
-            "typescript": "*",
-            "@types/react": "*",
-            "@types/react-dom": "*",
-            "esbuild": "*" 
+            "devvit": "latest",
+            "typescript": "latest",
+            "@types/react": "latest",
+            "@types/react-dom": "latest",
+            "esbuild": "latest" 
         }
     }, null, 2);
 }
