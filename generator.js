@@ -2,7 +2,7 @@
 function getDependencies(features, engine = 'vanilla') {
     // Using "latest" prevents 404 errors if specific versions are deprecated or missing from registry
     const deps = {
-        "@devvit/public-api": "latest",
+        "@devvit/devvit": "latest",
         "react": "^18.2.0",
         "react-dom": "^18.2.0"
     };
@@ -59,7 +59,7 @@ function getTsConfig() {
             "strict": true,
             "noEmit": true,
             "jsx": "react-jsx",
-            "jsxImportSource": "@devvit/public-api"
+            "jsxImportSource": "@devvit/devvit"
         },
         "include": ["src/**/*"]
     }, null, 2);
@@ -389,7 +389,7 @@ function generateServerCode(config, entryFile = 'index.html') {
     const webViewUrl = entryFile; 
     const safeTitle = JSON.stringify(config.title);
     
-    return `import { Devvit, useState } from '@devvit/public-api';
+    return `import { Devvit, useState } from '@devvit/devvit';
 
 Devvit.configure({
     redditAPI: true,
