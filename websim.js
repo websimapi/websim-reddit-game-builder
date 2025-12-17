@@ -2,26 +2,79 @@
 const API_BASE = 'https://websim.ai/api/v1';
 
 async function makeRequest(endpoint, options = {}) {
-    try {
-        const response = await fetch(`${API_BASE}${endpoint}`, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            }
-        });
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers
+        }
+    });
+    
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText}`);
+    }
+    
+    return response.json();
+}
+
+// --- Core API Functions ---
+
+export function getProjectById(projectId) {
+    return makeRequest(`/projects/${projectId}`);
+}
+
+export function getProjectBySlug(username, slug) {
+    return makeRequest(`/users/${username}/slugs/${slug}`);
+}
+
+export function getProjectRevisions(projectId, params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return makeRequest(`/projects/${projectId}/revisions?${query}`);
+}
+
+export async function getAllProjectRevisions(projectId) {
+    let allRevisions = [];
+    let hasNextPage = true;
+    let afterCursor = null;
+
+    while (hasNextPage) {
+        const params = { first: 100 }; // Fetch 100 at a time
+        if (afterCursor) {
+            params.after = afterCursor;
+        }
+
+        const response = await getProjectRevisions(projectId, params);
         
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API Error ${response.status}: ${errorText}`);
+        if (response.revisions && response.revisions.data) {
+            allRevisions = allRevisions.concat(response.revisions.data);
         }
         
-        return response.json();
-    } catch (e) {
-        console.error("WebSim API Error:", e);
-        throw e;
+        hasNextPage = response.revisions?.meta?.has_next_page || false;
+        afterCursor = response.revisions?.meta?.end_cursor;
+
+        // Safety break if there's no cursor to advance
+        if (!afterCursor) {
+            hasNextPage = false;
+        }
     }
+
+    return allRevisions;
 }
+
+export function getProjectRevision(projectId, version) {
+    return makeRequest(`/projects/${projectId}/revisions/${version}`);
+}
+
+export function getAssets(projectId, version) {
+    return makeRequest(`/projects/${projectId}/revisions/${version}/assets`);
+}
+
+export async function getUser(username) {
+    return makeRequest(`/users/${username}`);
+}
+
+// --- Helper Utilities for Builder ---
 
 export function parseProjectIdentifier(input) {
     if (!input) return null;
@@ -43,7 +96,7 @@ export function parseProjectIdentifier(input) {
             return { type: 'slug', username: slugMatch[1].substring(1), slug: slugMatch[2] };
         }
         
-        // /c/UUID (Conversation/Creation ID) - Handle as project ID often works or needs redirect
+        // /c/UUID (Conversation/Creation ID)
         const cMatch = pathname.match(/^\/c\/([a-z0-9_-]{20})/);
         if (cMatch) {
             return { type: 'id', value: cMatch[1] };
@@ -69,19 +122,19 @@ export function parseProjectIdentifier(input) {
 
 export async function fetchProjectMetadata(identifier) {
     if (identifier.type === 'id') {
-        return makeRequest(`/projects/${identifier.value}`);
+        return getProjectById(identifier.value);
     } else {
-        return makeRequest(`/users/${identifier.username}/slugs/${identifier.slug}`);
+        return getProjectBySlug(identifier.username, identifier.slug);
     }
 }
 
 export async function fetchProjectAssets(projectId, version) {
     if (!version) {
         // Get current version if not specified
-        const projectData = await makeRequest(`/projects/${projectId}`);
+        const projectData = await getProjectById(projectId);
         version = projectData.project.current_version;
     }
-    return makeRequest(`/projects/${projectId}/revisions/${version}/assets`);
+    return getAssets(projectId, version);
 }
 
 // Converts WebSim asset list to the format expected by the generator { "path/to/file": Uint8Array }
@@ -89,22 +142,21 @@ export function processAssets(assetList) {
     const files = {};
     const encoder = new TextEncoder();
 
+    if (!assetList || !Array.isArray(assetList)) {
+        console.warn("processAssets received invalid list:", assetList);
+        return files;
+    }
+
     for (const asset of assetList) {
         // Ensure path doesn't start with slash
         const path = asset.path.startsWith('/') ? asset.path.substring(1) : asset.path;
-        
-        // Handle content
-        // WebSim API typically returns content as string for text files.
-        // For binary/images, this implementation assumes text or checks type.
-        // Real WebSim API for assets often returns text content for code files.
         
         let content = asset.content;
         
         if (typeof content === 'string') {
             files[path] = encoder.encode(content);
-        } else {
-            // If it's already structured or binary (unlikely in this specific API endpoint variant, but possible)
-            // We'll treat as string
+        } else if (content) {
+            // If it's already structured or binary, try to stringify
             files[path] = encoder.encode(JSON.stringify(content));
         }
     }
