@@ -187,6 +187,10 @@ export function wrapProject(config, uploadedFiles) {
     const webRootFiles = {};
     let detectedEngine = 'vanilla';
 
+    console.group('🔍 Project Analysis');
+    console.log(`Root Prefix identified: "${rootPrefix}"`);
+    console.log(`Entry Point: "${entryPath}"`);
+
     for (const [path, content] of Object.entries(uploadedFiles)) {
         // Skip system files and mac artifacts
         if (path.startsWith('__MACOSX') || path.includes('.DS_Store') || path.includes('._')) continue;
@@ -204,11 +208,17 @@ export function wrapProject(config, uploadedFiles) {
             try {
                 const text = decoder.decode(content);
                 const imports = scanForImports(text);
-                imports.forEach(i => detectedImports.add(i));
+                
+                if (imports.length > 0) {
+                    console.log(`Found imports in ${relativePath}:`, imports);
+                    imports.forEach(i => detectedImports.add(i));
+                }
                 
                 // Heuristic Engine Detection
                 if (imports.some(i => i.toLowerCase().includes('phaser'))) detectedEngine = 'phaser';
-                if (imports.some(i => i.toLowerCase().includes('three'))) detectedEngine = 'three';
+                if (imports.some(i => i.toLowerCase().includes('three')) || imports.some(i => i.includes('@react-three/fiber'))) detectedEngine = 'three';
+                if (imports.some(i => i.toLowerCase().includes('kaboom'))) detectedEngine = 'kaboom';
+                if (imports.some(i => i.toLowerCase().includes('babylon'))) detectedEngine = 'babylonjs';
 
                 // Keep index.html for later modification
                 if (path === entryPath) {
@@ -222,6 +232,10 @@ export function wrapProject(config, uploadedFiles) {
 
         webRootFiles[relativePath] = content;
     }
+    
+    console.log(`✅ Detected Engine: ${detectedEngine}`);
+    console.log(`📦 External Imports to Map:`, Array.from(detectedImports));
+    console.groupEnd();
 
     // --- 2. Generate Project Config ---
 
@@ -292,13 +306,19 @@ export function wrapProject(config, uploadedFiles) {
     return files;
 }
 
-// Helper: Scan text for module imports
+// Helper: Scan text for module imports and engine hints
 function scanForImports(code) {
     const imports = new Set();
-    const regex = /import\s+(?:[\s\S]*?from\s+)?['"]([^'"]+)['"]/g; // Simple static import
-    const dynamicRegex = /import\(['"]([^'"]+)['"]\)/g; // Dynamic import
-    
+    // Static imports
+    const regex = /import\s+(?:[\s\S]*?from\s+)?['"]([^'"]+)['"]/g;
+    // Dynamic imports
+    const dynamicRegex = /import\(['"]([^'"]+)['"]\)/g; 
+    // CDN links in HTML
+    const scriptSrcRegex = /<script[^>]+src=['"]([^'"]+)['"]/g;
+
     let match;
+    
+    // JS Imports
     while ((match = regex.exec(code)) !== null) {
         const mod = match[1];
         if (!mod.startsWith('.') && !mod.startsWith('/') && !mod.startsWith('http')) {
@@ -311,6 +331,17 @@ function scanForImports(code) {
             imports.add(mod);
         }
     }
+    
+    // HTML Scripts (Catch CDN usage)
+    while ((match = scriptSrcRegex.exec(code)) !== null) {
+        const src = match[1];
+        if (src.includes('three')) imports.add('three');
+        if (src.includes('phaser')) imports.add('phaser');
+        if (src.includes('kaboom')) imports.add('kaboom');
+        if (src.includes('babylon')) imports.add('babylonjs');
+        if (src.includes('p5')) imports.add('p5');
+    }
+
     return Array.from(imports);
 }
 

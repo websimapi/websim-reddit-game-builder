@@ -1,10 +1,11 @@
 import { generateProject, wrapProject } from './generator.js';
 import { ProjectZipper, saveAs } from './zip-utils.js';
+import { parseProjectIdentifier, fetchProjectMetadata, fetchProjectAssets, processAssets } from './websim.js';
 import JSZip from 'jszip';
 
 // State
 let selectedEngine = 'vanilla';
-let mode = 'upload'; // 'upload' or 'template'
+let mode = 'upload'; // 'upload', 'websim', 'template'
 let uploadedZipFiles = null; // Stores extracted file data: { path: content }
 
 // Initialize random slug
@@ -36,12 +37,71 @@ tabBtns.forEach(btn => {
         
         tabContents.forEach(c => c.classList.add('hidden'));
         const target = document.getElementById(`tab-${btn.dataset.tab}`);
-        target.classList.remove('hidden');
+        if (target) target.classList.remove('hidden');
 
         // Switch State
         mode = btn.dataset.tab;
         updateGenerateButtonState();
     });
+});
+
+// --- WebSim Handling ---
+const websimUrlInput = document.getElementById('websimUrl');
+const fetchWebsimBtn = document.getElementById('fetchWebsimBtn');
+const websimStatus = document.getElementById('websim-status');
+const websimInfo = document.getElementById('websim-info');
+
+fetchWebsimBtn.addEventListener('click', async () => {
+    const url = websimUrlInput.value.trim();
+    if (!url) return;
+
+    websimStatus.textContent = "Parsing URL...";
+    websimStatus.classList.remove('hidden');
+    websimStatus.style.color = "var(--text-secondary)";
+    
+    try {
+        const identifier = parseProjectIdentifier(url);
+        if (!identifier) throw new Error("Could not parse WebSim URL.");
+
+        websimStatus.textContent = "Fetching project metadata...";
+        const metaData = await fetchProjectMetadata(identifier);
+        
+        if (!metaData || !metaData.project) throw new Error("Project not found.");
+
+        const project = metaData.project;
+        
+        // Update Preview
+        document.getElementById('ws-title').textContent = project.title || "Untitled";
+        document.getElementById('ws-meta').textContent = `v${project.current_version} • @${project.created_by?.username || 'unknown'}`;
+        websimInfo.classList.remove('hidden');
+        
+        // Update Main Config Inputs automatically
+        document.getElementById('gameTitle').value = project.title || "WebSim Game";
+        if (project.slug) {
+            document.getElementById('gameName').value = project.slug; // Update slug
+        }
+
+        websimStatus.textContent = "Fetching assets...";
+        
+        const assetsData = await fetchProjectAssets(project.id, project.current_version);
+        if (!assetsData || !assetsData.assets) throw new Error("No assets found.");
+
+        // Process assets into standard format
+        uploadedZipFiles = processAssets(assetsData.assets);
+        
+        websimStatus.textContent = `Successfully loaded ${Object.keys(uploadedZipFiles).length} files! Ready to generate.`;
+        websimStatus.style.color = "#4CAF50";
+        
+        // Force engine detection in console preview
+        wrapProject({ slug: 'temp', title: 'temp', features: {} }, uploadedZipFiles);
+
+    } catch (e) {
+        console.error(e);
+        websimStatus.textContent = `Error: ${e.message}`;
+        websimStatus.style.color = "red";
+        websimInfo.classList.add('hidden');
+        uploadedZipFiles = null;
+    }
 });
 
 // --- Engine Selection ---
@@ -154,16 +214,16 @@ generateBtn.addEventListener('click', async () => {
         }
     };
 
-    if (mode === 'upload' && !uploadedZipFiles) {
-        alert("Please upload a .zip file first.");
+    if ((mode === 'upload' || mode === 'websim') && !uploadedZipFiles) {
+        alert("Please upload a .zip file or import a WebSim project first.");
         return;
     }
 
-    statusDiv.textContent = mode === 'upload' ? "Analyzing & converting project..." : "Generating project...";
+    statusDiv.textContent = (mode === 'upload' || mode === 'websim') ? "Analyzing & converting project..." : "Generating project...";
     
     try {
         let files;
-        if (mode === 'upload') {
+        if (mode === 'upload' || mode === 'websim') {
             files = wrapProject(config, uploadedZipFiles);
         } else {
             files = generateProject(config);

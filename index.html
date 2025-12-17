@@ -40,6 +40,7 @@
                 <h2>2. Project Source</h2>
                 <div class="tabs">
                     <button class="tab-btn active" data-tab="upload">Upload .ZIP</button>
+                    <button class="tab-btn" data-tab="websim">Import WebSim</button>
                     <button class="tab-btn" data-tab="template">Use Template</button>
                 </div>
 
@@ -57,6 +58,29 @@
                             <span class="icon-file">📄</span>
                             <span id="filename">game.zip</span>
                             <button id="removeFile" class="text-btn">✕</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WebSim Import Tab -->
+                <div id="tab-websim" class="tab-content hidden">
+                    <div class="websim-importer">
+                        <div class="form-group">
+                            <label for="websimUrl">WebSim Project URL</label>
+                            <div class="input-with-btn">
+                                <input type="text" id="websimUrl" placeholder="https://websim.ai/p/..." />
+                                <button id="fetchWebsimBtn" class="primary-btn small-btn">Fetch</button>
+                            </div>
+                            <small>Enter a WebSim project URL to automatically download and configure it.</small>
+                        </div>
+                        <div id="websim-status" class="status-msg hidden"></div>
+                        
+                        <div id="websim-info" class="hidden">
+                            <div class="project-preview">
+                                <h3 id="ws-title">Project Title</h3>
+                                <p id="ws-meta">v1 • by user</p>
+                                <div class="tag-list" id="ws-tags"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
