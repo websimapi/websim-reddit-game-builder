@@ -49,10 +49,10 @@ dist
     // --- 3. tsconfig.json ---
     files['tsconfig.json'] = JSON.stringify({
         "compilerOptions": {
-            "target": "ES2022",
-            "module": "Node16",
-            "moduleResolution": "Node16",
-            "lib": ["ES2022", "DOM", "DOM.Iterable"],
+            "target": "ES2020",
+            "module": "ESNext",
+            "moduleResolution": "bundler",
+            "lib": ["ES2020", "DOM", "DOM.Iterable"],
             "allowJs": true,
             "checkJs": false,
             "strict": true,
@@ -103,7 +103,8 @@ npm run dev
 \`\`\`
 
 - This runs \`devvit playtest\`.
-- Open the provided link in your browser to test your game.
+- Open the provided link in your browser.
+- **IMPORTANT**: In the playtest subreddit, click the **"Add Game Post"** menu item (usually in the "..." overflow menu or right-hand sidebar) to create the game post.
 
 ## Troubleshooting
 
@@ -135,6 +136,31 @@ Devvit.configure({
     redis: true,
     ${config.features.media ? 'media: true,' : ''}
     ${config.features.multiplayer ? 'realtime: true,' : ''}
+});
+
+// Add a menu item to the subreddit menu to instantiate the game
+Devvit.addMenuItem({
+    label: 'Add Game Post',
+    location: 'subreddit',
+    forUserType: 'moderator',
+    onPress: async (_event, context) => {
+        const { reddit, ui } = context;
+        ui.showToast("Submitting your game post...");
+
+        const subreddit = await reddit.getCurrentSubreddit();
+        await reddit.submitPost({
+            title: '${config.title}',
+            subredditName: subreddit.name,
+            // The preview appears while the post loads
+            preview: (
+                <vstack height="100%" width="100%" alignment="middle center">
+                    <text>Loading Game...</text>
+                </vstack>
+            ),
+        });
+
+        ui.showToast("Game post created!");
+    },
 });
 
 Devvit.addCustomPostType({
