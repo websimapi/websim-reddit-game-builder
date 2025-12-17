@@ -1,14 +1,15 @@
 // Helper to get standard dependencies
 function getDependencies(features, engine = 'vanilla') {
     const deps = {
-        "@devvit/public-api": "^0.10.0",
-        "react": "^18.2.0",
-        "react-dom": "^18.2.0"
+        "@devvit/public-api": "latest",
+        "@devvit/runtime": "latest",
+        "react": "latest",
+        "react-dom": "latest"
     };
 
-    if (features.media) deps["@devvit/media"] = "^0.10.0";
-    if (engine === 'phaser') deps["phaser"] = "^3.80.0";
-    if (engine === 'three') deps["three"] = "^0.160.0";
+    if (features.media) deps["@devvit/media"] = "latest";
+    if (engine === 'phaser') deps["phaser"] = "latest";
+    if (engine === 'three') deps["three"] = "latest";
     
     return deps;
 }
@@ -29,11 +30,11 @@ function getPackageJson(config, deps) {
         },
         dependencies: deps,
         devDependencies: {
-            "devvit": "^0.10.0",
-            "typescript": "^5.0.0",
-            "@types/react": "^18.2.0",
-            "@types/react-dom": "^18.2.0",
-            "esbuild": "^0.19.0" 
+            "devvit": "latest",
+            "typescript": "latest",
+            "@types/react": "latest",
+            "@types/react-dom": "latest",
+            "esbuild": "latest" 
         }
     }, null, 2);
 }
@@ -64,6 +65,10 @@ function getDevvitYaml(slug) {
 // Generates the standard README
 function getReadme(slug, title) {
     return `# ${title}
+
+## Version
+This project is configured to use the \`latest\` version of Devvit.
+If you encounter version errors, try deleting \`node_modules\` and \`package-lock.json\`, then run \`npm install\` again.
 
 ## Getting Started
 
