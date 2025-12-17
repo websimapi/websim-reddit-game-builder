@@ -139,121 +139,106 @@ export function wrapProject(config, uploadedFiles) {
     const files = {};
     const { slug, title, features } = config;
 
-    // --- 1. Analyze Content First ---
+    // --- 1. Analyze Content & Paths ---
     
-    // Locate the entry point (index.html)
-    // Filter out MacOS artifacts and ensure we only look at relevant files
     const validPaths = Object.keys(uploadedFiles).filter(p => !p.startsWith('__MACOSX') && !p.includes('.DS_Store') && !p.includes('._'));
     
+    // Find Entry Point (prioritize index.html)
     const indexFiles = validPaths.filter(p => p.toLowerCase().endsWith('index.html') || p.toLowerCase().endsWith('index.htm'));
-    // Sort by path length (shortest first) to prioritize root index.html
-    // However, we should prefer index.html that are NOT in a 'node_modules' or hidden folder if possible
+    // Sort: prioritize root files (shortest path), and de-prioritize node_modules
     indexFiles.sort((a, b) => {
-        // Penalty for node_modules
-        const aScore = (a.includes('node_modules') ? 1000 : 0) + a.length;
-        const bScore = (b.includes('node_modules') ? 1000 : 0) + b.length;
+        const aScore = (a.includes('node_modules') ? 1000 : 0) + a.split('/').length;
+        const bScore = (b.includes('node_modules') ? 1000 : 0) + b.split('/').length;
         return aScore - bScore;
     });
     
-    let entryPath = "";
-    let rootPrefix = "";
+    let entryPath = indexFiles.length > 0 ? indexFiles[0] : null;
 
-    if (indexFiles.length > 0) {
-        entryPath = indexFiles[0];
-        // The root is the folder containing this file
-        const lastSlash = entryPath.lastIndexOf('/');
-        if (lastSlash !== -1) {
-            rootPrefix = entryPath.substring(0, lastSlash + 1);
-        }
-    } else {
-        // Fallback 1: Look for ANY html file if index.html is missing
-        const htmlFiles = validPaths.filter(p => p.toLowerCase().endsWith('.html') || p.toLowerCase().endsWith('.htm'));
-        if (htmlFiles.length > 0) {
-             console.log("⚠️ No index.html found. Using first HTML file found as entry.");
-             entryPath = htmlFiles[0];
-             const lastSlash = entryPath.lastIndexOf('/');
-             if (lastSlash !== -1) {
-                 rootPrefix = entryPath.substring(0, lastSlash + 1);
-             }
-        } else {
-            // Fallback 2: If no html files at all, try to find a common root prefix to organize files
-            if (validPaths.length > 0) {
-                const firstSlash = validPaths[0].indexOf('/');
-                if (firstSlash !== -1) {
-                    const potentialPrefix = validPaths[0].substring(0, firstSlash + 1);
-                    if (validPaths.every(p => p.startsWith(potentialPrefix))) {
-                        rootPrefix = potentialPrefix;
-                    }
-                }
+    // Fallback: Use any HTML file
+    if (!entryPath) {
+        const anyHtml = validPaths.find(p => p.toLowerCase().endsWith('.html'));
+        if (anyHtml) entryPath = anyHtml;
+    }
+
+    // Determine "Common Root" to strip unnecessarily nested folders (e.g. if everything is in "MyGame/")
+    // Logic: If all valid paths start with the same directory prefix, we strip it.
+    let rootPrefix = "";
+    if (validPaths.length > 0) {
+        const parts = validPaths[0].split('/');
+        // Try prefixes of increasing length
+        for (let i = 0; i < parts.length - 1; i++) {
+            const prefix = parts.slice(0, i + 1).join('/') + '/';
+            if (validPaths.every(p => p.startsWith(prefix))) {
+                rootPrefix = prefix;
+            } else {
+                break;
             }
         }
     }
 
-    // Scan imports and detect engine
+    // Calculate final Entry Path relative to the new webroot
+    let finalEntryPath = "index.html"; // Default fallback
+    if (entryPath) {
+        if (entryPath.startsWith(rootPrefix)) {
+            finalEntryPath = entryPath.substring(rootPrefix.length);
+        } else {
+            // Should not happen if rootPrefix logic is correct, but safety net:
+            finalEntryPath = entryPath; 
+        }
+    }
+
+    // --- 2. Process Files ---
     const detectedImports = new Set();
     const decoder = new TextDecoder('utf-8');
     const encoder = new TextEncoder();
-
-    let processedIndexHtml = null;
     const webRootFiles = {};
     let detectedEngine = 'vanilla';
+    let processedIndexHtml = null;
 
     console.group('🔍 Project Analysis');
-    console.log(`Input Files: ${Object.keys(uploadedFiles).length}`);
-    if (Object.keys(uploadedFiles).length < 5) {
-        console.log("Files:", Object.keys(uploadedFiles));
-    }
-
+    console.log(`Input Files: ${validPaths.length}`);
     console.log(`Root Prefix identified: "${rootPrefix}"`);
-    console.log(`Entry Point: "${entryPath}"`);
+    console.log(`Original Entry Point: "${entryPath}"`);
+    console.log(`Final Webroot Entry: "${finalEntryPath}"`);
 
     for (const [path, content] of Object.entries(uploadedFiles)) {
-        // Skip system files and mac artifacts
-        if (path.startsWith('__MACOSX') || path.includes('.DS_Store') || path.includes('._')) continue;
+        // Skip invalid
+        if (!validPaths.includes(path)) continue;
 
-        // Skip files not under the decided root
-        if (rootPrefix && !path.startsWith(rootPrefix)) continue;
-
+        // Strip prefix
         let relativePath = path;
-        if (rootPrefix) {
+        if (path.startsWith(rootPrefix)) {
             relativePath = path.substring(rootPrefix.length);
         }
-        
-        // Check if this is the entry point
+
         const isEntry = path === entryPath;
         const lowerPath = path.toLowerCase();
-        // Broader check for text files to ensure we catch index.HTML or other variations
-        const isTextFile = lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.jsx') || lowerPath.endsWith('.tsx') || lowerPath.endsWith('.html') || lowerPath.endsWith('.htm') || lowerPath.endsWith('.css') || lowerPath.endsWith('.json') || isEntry;
+        
+        // Try decoding text files for analysis
+        const isTextFile = lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.jsx') 
+            || lowerPath.endsWith('.html') || lowerPath.endsWith('.htm') || lowerPath.endsWith('.css') || lowerPath.endsWith('.json');
 
         if (isTextFile) {
             try {
                 const text = decoder.decode(content);
                 
-                // Only scan imports for JS/HTML
-                if (lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.jsx') || lowerPath.endsWith('.tsx') || lowerPath.endsWith('.html') || lowerPath.endsWith('.htm')) {
+                // Scan imports
+                if (lowerPath.match(/\.(js|mjs|jsx|tsx|html|htm)$/)) {
                     const imports = scanForImports(text);
-                    
-                    if (imports.length > 0) {
-                        console.log(`Found imports in ${relativePath}:`, imports);
-                        imports.forEach(i => detectedImports.add(i));
-                    }
-                    
-                    // Heuristic Engine Detection
+                    if (imports.length > 0) imports.forEach(i => detectedImports.add(i));
+
                     if (imports.some(i => i.toLowerCase().includes('phaser'))) detectedEngine = 'phaser';
-                    if (imports.some(i => i.toLowerCase().includes('three')) || imports.some(i => i.includes('@react-three/fiber'))) detectedEngine = 'three';
+                    if (imports.some(i => i.toLowerCase().includes('three'))) detectedEngine = 'three';
                     if (imports.some(i => i.toLowerCase().includes('kaboom'))) detectedEngine = 'kaboom';
-                    if (imports.some(i => i.toLowerCase().includes('babylon'))) detectedEngine = 'babylonjs';
                 }
 
-                // Keep index.html for later modification
+                // Intercept Entry File
                 if (isEntry) {
-                    console.log(`Entry point matched and processed: ${path}`);
                     processedIndexHtml = text;
-                    continue; 
+                    continue; // Don't write yet, we will modify it
                 }
             } catch (e) {
-                // binary or error, skip scan
-                console.warn(`Failed to decode text file: ${path}`, e);
+                console.warn(`Failed to analyze ${path}`, e);
             }
         }
 
@@ -261,28 +246,24 @@ export function wrapProject(config, uploadedFiles) {
     }
     
     console.log(`✅ Detected Engine: ${detectedEngine}`);
-    console.log(`📦 External Imports to Map:`, Array.from(detectedImports));
     console.groupEnd();
 
-    // --- 2. Generate Project Config ---
+    // --- 3. Generate Config ---
 
     files['devvit.yaml'] = getDevvitYaml(slug);
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
     files['tsconfig.json'] = getTsConfig();
     
-    // Package.json with Detected Engine
     const deps = getDependencies(features, detectedEngine);
     files['package.json'] = getPackageJson(config, deps);
-
     files['README.md'] = getReadme(slug, title);
     files['bridge.js'] = `console.log("Bridge connected for ${slug}!");`;
 
-    // Server Code
-    // Force entry file to be exactly 'index.html' in the webroot for simplicity
-    // The previous logic handled paths, but for Devvit WebViews, keeping the entry at root is safest.
-    files['src/main.tsx'] = generateServerCode(config, 'index.html');
+    // --- 4. Generate Server Code ---
+    // Pass the actual relative path to the entry file
+    files['src/main.tsx'] = generateServerCode(config, finalEntryPath);
 
-    // --- 3. Inject Helpers (Import Map, Viewport, CSS) ---
+    // --- 5. Finalize Webroot (Inject Polyfills) ---
 
     const importMap = { imports: {} };
     detectedImports.forEach(pkg => {
@@ -290,17 +271,11 @@ export function wrapProject(config, uploadedFiles) {
     });
 
     if (processedIndexHtml !== null) {
-        console.log("Processing entry point HTML...");
-        // A. Import Map
+        // Inject Import Map & Viewport
         const importMapScript = `\n<script type="importmap">\n${JSON.stringify(importMap, null, 2)}\n</script>\n`;
-        
-        // B. Viewport (Mobile Fix)
         const viewportMeta = `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">`;
-        
-        // C. CSS Reset (Full Screen)
         const cssReset = `<style>
     html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; touch-action: none; background-color: #000; }
-    canvas { display: block; touch-action: none; }
 </style>`;
 
         const injectInHead = (html, content) => {
@@ -309,49 +284,18 @@ export function wrapProject(config, uploadedFiles) {
              return `${content}\n${html}`;
         };
 
-        // Inject if missing
-        if (!processedIndexHtml.includes('<script type="importmap"')) {
-            processedIndexHtml = injectInHead(processedIndexHtml, importMapScript);
-        }
-        if (!processedIndexHtml.includes('name="viewport"')) {
-            processedIndexHtml = injectInHead(processedIndexHtml, viewportMeta);
-        }
-        // Basic check to see if they already handled overflow
-        if (!processedIndexHtml.includes('overflow: hidden') && !processedIndexHtml.includes('overflow:hidden')) {
-             processedIndexHtml = injectInHead(processedIndexHtml, cssReset);
-        }
+        if (!processedIndexHtml.includes('<script type="importmap"')) processedIndexHtml = injectInHead(processedIndexHtml, importMapScript);
+        if (!processedIndexHtml.includes('name="viewport"')) processedIndexHtml = injectInHead(processedIndexHtml, viewportMeta);
+        if (!processedIndexHtml.includes('overflow: hidden')) processedIndexHtml = injectInHead(processedIndexHtml, cssReset);
         
-        // ALWAYS save the main entry as index.html in the root of the webroot
-        // This ensures the webview url="index.html" always finds it.
-        webRootFiles['index.html'] = encoder.encode(processedIndexHtml);
+        // Write modified entry file to its CORRECT location (preserving structure)
+        webRootFiles[finalEntryPath] = encoder.encode(processedIndexHtml);
     } else {
-        // Critical Fallback: No HTML file was found or processed.
-        // Generate a default index.html so the Devvit app doesn't crash/show 404.
-        console.warn('⚠️ No entry point found. Generating fallback index.html');
-        
-        const fileList = Object.keys(webRootFiles).join('</li><li>');
-        const fallbackHTML = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>${title}</title>
-    <style>
-        body { background: #000; color: #fff; font-family: sans-serif; padding: 20px; text-align: center; }
-        ul { text-align: left; display: inline-block; }
-    </style>
-</head>
-<body>
-    <h1>${title}</h1>
-    <p>No index.html was found in the uploaded assets.</p>
-    <p>Files loaded:</p>
-    <ul><li>${fileList}</li></ul>
-</body>
-</html>`;
+        // Fallback: Generate a simple index.html if none exists
+        const fallbackHTML = `<!DOCTYPE html><html><body><h1>${title}</h1><p>No index.html found.</p></body></html>`;
         webRootFiles['index.html'] = encoder.encode(fallbackHTML);
     }
 
-    // 4. Finalize webroot
     for (const [path, content] of Object.entries(webRootFiles)) {
         files[`webroot/${path}`] = content;
     }
@@ -425,8 +369,8 @@ export function generateProject(config) {
 }
 
 function generateServerCode(config, entryFile = 'index.html') {
-    // Ensure entryFile is simple
-    const webViewUrl = entryFile.split('/').pop(); 
+    // We use the full relative path for the webview URL to support structured zips
+    const webViewUrl = entryFile; 
     const safeTitle = JSON.stringify(config.title);
     
     return `import { Devvit, useState } from '@devvit/public-api';
@@ -451,6 +395,12 @@ Devvit.addMenuItem({
         const post = await reddit.submitPost({
             title: ${safeTitle},
             subredditName: subreddit.name,
+            // The preview appears while the post loads and signals this is a custom post
+            preview: (
+                <vstack height="100%" width="100%" alignment="middle center">
+                    <text size="large">Loading Game...</text>
+                </vstack>
+            ),
         });
         
         ui.showToast("Game post created!");
