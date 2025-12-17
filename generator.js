@@ -30,7 +30,7 @@ function getPackageJson(config, deps) {
         dependencies: deps,
         devDependencies: {
             "devvit": "latest",
-            "typescript": "^5.0.0",
+            "typescript": "latest",
             "@types/react": "latest",
             "@types/react-dom": "latest",
             "esbuild": "latest" 
@@ -69,6 +69,12 @@ function getReadme(slug, title) {
 ## Version
 This project is configured to use the \`latest\` version of Devvit.
 If you encounter version errors, try deleting \`node_modules\` and \`package-lock.json\`, then run \`npm install\` again.
+
+## CLI Update
+Ensure your global Devvit CLI is up to date:
+\`\`\`bash
+npm install -g devvit
+\`\`\`
 
 ## Getting Started
 
@@ -221,12 +227,6 @@ Devvit.addMenuItem({
         await reddit.submitPost({
             title: '${config.title}',
             subredditName: subreddit.name,
-            // The preview appears while the post loads
-            preview: (
-                <vstack height="100%" width="100%" alignment="middle center">
-                    <text size="large">Loading Game...</text>
-                </vstack>
-            ),
         });
 
         ui.showToast("Game post created!");
