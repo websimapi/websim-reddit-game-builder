@@ -17,7 +17,8 @@ dist
     const deps = {
         "@devvit/public-api": "latest",
         "@devvit/web": "latest",
-        "react": "latest"
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
     };
 
     if (features.media) deps["@devvit/media"] = "latest";
@@ -57,7 +58,7 @@ dist
             "checkJs": false,
             "strict": true,
             "noEmit": true,
-            "jsx": "react-jsx"
+            "jsx": "react"
         },
         "include": ["src/**/*"]
     }, null, 2);
@@ -130,6 +131,7 @@ console.log("Run 'npm run dev' to start the actual Devvit app.");
 function generateServerCode(config) {
     // Generate valid Devvit Main Entry
     return `import { Devvit, useState } from '@devvit/public-api';
+import React from 'react';
 
 Devvit.configure({
     redditAPI: true,
@@ -154,7 +156,7 @@ Devvit.addMenuItem({
             // The preview appears while the post loads
             preview: (
                 <vstack height="100%" width="100%" alignment="middle center">
-                    <text>Loading Game...</text>
+                    <text size="large">Loading Game...</text>
                 </vstack>
             ),
         });
