@@ -7,6 +7,7 @@ function getDependencies(features, engine = 'vanilla') {
     };
 
     if (features.media) deps["@devvit/media"] = "latest";
+    if (features.multiplayer) deps["@devvit/realtime"] = "latest";
     
     // We keep these in package.json for reference, 
     // but client-side they are handled via Import Maps
@@ -133,32 +134,12 @@ export function wrapProject(config, uploadedFiles) {
     const files = {};
     const { slug, title, features } = config;
 
-    // Standard Devvit Files
-    files['devvit.yaml'] = getDevvitYaml(slug);
-    files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
-    files['tsconfig.json'] = getTsConfig();
+    // --- 1. Analyze Content First ---
     
-    // Package.json
-    const deps = getDependencies(features, 'vanilla');
-    files['package.json'] = getPackageJson(config, deps);
-
-    // README
-    files['README.md'] = getReadme(slug, title);
-
-    // Bridge
-    files['bridge.js'] = `console.log("Bridge connected for ${slug}!");`;
-
-    // Server Code
-    files['src/main.tsx'] = generateServerCode(config, 'index.html');
-
-    // --- content processing ---
-    
-    // 1. Locate the entry point (index.html)
+    // Locate the entry point (index.html)
     const validPaths = Object.keys(uploadedFiles).filter(p => !p.startsWith('__MACOSX') && !p.includes('.DS_Store'));
     
-    // Find all index.html files
     const indexFiles = validPaths.filter(p => p.toLowerCase().endsWith('index.html') || p.toLowerCase().endsWith('index.htm'));
-    
     // Sort by path length (shortest first) to prioritize root index.html
     indexFiles.sort((a, b) => a.length - b.length);
     
@@ -185,13 +166,14 @@ export function wrapProject(config, uploadedFiles) {
         }
     }
 
-    // 2. Scan imports and prepare files
+    // Scan imports and detect engine
     const detectedImports = new Set();
     const decoder = new TextDecoder('utf-8');
     const encoder = new TextEncoder();
 
     let processedIndexHtml = null;
     const webRootFiles = {};
+    let detectedEngine = 'vanilla';
 
     for (const [path, content] of Object.entries(uploadedFiles)) {
         // Skip system files
@@ -205,17 +187,21 @@ export function wrapProject(config, uploadedFiles) {
             relativePath = path.substring(rootPrefix.length);
         }
         
-        // Scan JS/HTML for imports
-        if (path.endsWith('.js') || path.endsWith('.mjs') || path.endsWith('.html')) {
+        // Text analysis for JS/HTML
+        if (path.endsWith('.js') || path.endsWith('.mjs') || path.endsWith('.jsx') || path.endsWith('.tsx') || path.endsWith('.html') || path.endsWith('.htm')) {
             try {
                 const text = decoder.decode(content);
                 const imports = scanForImports(text);
                 imports.forEach(i => detectedImports.add(i));
                 
+                // Heuristic Engine Detection
+                if (imports.some(i => i.toLowerCase().includes('phaser'))) detectedEngine = 'phaser';
+                if (imports.some(i => i.toLowerCase().includes('three'))) detectedEngine = 'three';
+
                 // Keep index.html for later modification
                 if (path === entryPath) {
                     processedIndexHtml = text;
-                    continue; // We will write this last
+                    continue; 
                 }
             } catch (e) {
                 // binary or error, skip scan
@@ -225,33 +211,71 @@ export function wrapProject(config, uploadedFiles) {
         webRootFiles[relativePath] = content;
     }
 
-    // 3. Generate Import Map
-    const importMap = {
-        imports: {}
-    };
+    // --- 2. Generate Project Config ---
+
+    files['devvit.yaml'] = getDevvitYaml(slug);
+    files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
+    files['tsconfig.json'] = getTsConfig();
     
+    // Package.json with Detected Engine
+    const deps = getDependencies(features, detectedEngine);
+    files['package.json'] = getPackageJson(config, deps);
+
+    files['README.md'] = getReadme(slug, title);
+    files['bridge.js'] = `console.log("Bridge connected for ${slug}!");`;
+
+    // Server Code
+    // Determine the entry filename relative to webroot
+    let relativeEntry = 'index.html';
+    if (entryPath && rootPrefix) {
+        relativeEntry = entryPath.substring(rootPrefix.length);
+    } else if (entryPath) {
+        relativeEntry = entryPath;
+    }
+    files['src/main.tsx'] = generateServerCode(config, relativeEntry);
+
+    // --- 3. Inject Helpers (Import Map, Viewport, CSS) ---
+
+    const importMap = { imports: {} };
     detectedImports.forEach(pkg => {
-        // Default to esm.sh for generic packages
         importMap.imports[pkg] = `https://esm.sh/${pkg}`;
     });
 
-    // 4. Inject Import Map into Index.html
     if (processedIndexHtml) {
+        // A. Import Map
         const importMapScript = `\n<script type="importmap">\n${JSON.stringify(importMap, null, 2)}\n</script>\n`;
         
-        // Inject safely
-        if (processedIndexHtml.includes('</head>')) {
-            processedIndexHtml = processedIndexHtml.replace('</head>', `${importMapScript}</head>`);
-        } else if (processedIndexHtml.includes('<body')) {
-            processedIndexHtml = processedIndexHtml.replace('<body', `${importMapScript}<body`);
-        } else {
-            processedIndexHtml = `${importMapScript}${processedIndexHtml}`;
+        // B. Viewport (Mobile Fix)
+        const viewportMeta = `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">`;
+        
+        // C. CSS Reset (Full Screen)
+        const cssReset = `<style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; touch-action: none; background-color: #000; }
+    canvas { display: block; touch-action: none; }
+</style>`;
+
+        const injectInHead = (html, content) => {
+             if (html.includes('</head>')) return html.replace('</head>', `${content}\n</head>`);
+             if (html.includes('<body')) return html.replace('<body', `${content}\n<body`);
+             return `${content}\n${html}`;
+        };
+
+        // Inject if missing
+        if (!processedIndexHtml.includes('<script type="importmap"')) {
+            processedIndexHtml = injectInHead(processedIndexHtml, importMapScript);
+        }
+        if (!processedIndexHtml.includes('name="viewport"')) {
+            processedIndexHtml = injectInHead(processedIndexHtml, viewportMeta);
+        }
+        // Basic check to see if they already handled overflow
+        if (!processedIndexHtml.includes('overflow: hidden') && !processedIndexHtml.includes('overflow:hidden')) {
+             processedIndexHtml = injectInHead(processedIndexHtml, cssReset);
         }
         
-        webRootFiles['index.html'] = encoder.encode(processedIndexHtml);
+        webRootFiles[relativeEntry] = encoder.encode(processedIndexHtml);
     }
 
-    // 5. Finalize webroot
+    // 4. Finalize webroot
     for (const [path, content] of Object.entries(webRootFiles)) {
         files[`webroot/${path}`] = content;
     }

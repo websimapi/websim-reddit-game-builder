@@ -156,7 +156,7 @@ generateBtn.addEventListener('click', async () => {
         return;
     }
 
-    statusDiv.textContent = mode === 'upload' ? " converting project..." : "Generating project...";
+    statusDiv.textContent = mode === 'upload' ? "Analyzing & converting project..." : "Generating project...";
     
     try {
         let files;
