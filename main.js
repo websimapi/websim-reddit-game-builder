@@ -84,10 +84,14 @@ fetchWebsimBtn.addEventListener('click', async () => {
         websimStatus.textContent = "Fetching assets...";
         
         const assetsData = await fetchProjectAssets(project.id, project.current_version);
-        if (!assetsData || !assetsData.assets) throw new Error("No assets found.");
+        
+        // Handle various API response structures (data, assets, project_assets)
+        const rawAssets = assetsData.assets || assetsData.project_assets || assetsData.data;
+        
+        if (!rawAssets || !Array.isArray(rawAssets)) throw new Error("No assets found.");
 
         // Process assets into standard format
-        uploadedZipFiles = processAssets(assetsData.assets);
+        uploadedZipFiles = processAssets(rawAssets);
         
         websimStatus.textContent = `Successfully loaded ${Object.keys(uploadedZipFiles).length} files! Ready to generate.`;
         websimStatus.style.color = "#4CAF50";

@@ -1,5 +1,6 @@
 // WebSim API Integration
-const API_BASE = 'https://websim.ai/api/v1';
+// Using relative path to avoid CORS when running inside WebSim
+const API_BASE = '/api/v1';
 
 async function makeRequest(endpoint, options = {}) {
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -112,7 +113,13 @@ export function parseProjectIdentifier(input) {
         return { type: 'slug', username: atSlugMatch[1], slug: atSlugMatch[2] };
     }
 
-    // 3. Assume it's a project ID
+    // 3. Try to parse as username/slug
+    const slugMatch = input.match(/^([a-zA-Z0-9_]{3,32})\/([a-zA-Z0-9-]{3,50})$/);
+    if (slugMatch) {
+        return { type: 'slug', username: slugMatch[1], slug: slugMatch[2] };
+    }
+
+    // 4. Assume it's a project ID
     if (/^[a-z0-9_-]{20}$/.test(input)) {
         return { type: 'id', value: input };
     }
@@ -148,6 +155,8 @@ export function processAssets(assetList) {
     }
 
     for (const asset of assetList) {
+        if (!asset.path) continue;
+        
         // Ensure path doesn't start with slash
         const path = asset.path.startsWith('/') ? asset.path.substring(1) : asset.path;
         
