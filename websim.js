@@ -157,8 +157,9 @@ export function processAssets(assetList) {
     for (const asset of assetList) {
         if (!asset.path) continue;
         
-        // Ensure path doesn't start with slash
-        const path = asset.path.startsWith('/') ? asset.path.substring(1) : asset.path;
+        // Ensure path doesn't start with slash (normalize)
+        // Remove all leading slashes and ./
+        const path = asset.path.replace(/^(\.|\/)+/, '');
         
         let content = asset.content;
         
@@ -167,6 +168,9 @@ export function processAssets(assetList) {
         } else if (content) {
             // If it's already structured or binary, try to stringify
             files[path] = encoder.encode(JSON.stringify(content));
+        } else {
+            // Handle empty content or binary placeholders
+            files[path] = new Uint8Array(0);
         }
     }
     

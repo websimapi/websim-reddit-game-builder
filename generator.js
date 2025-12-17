@@ -166,13 +166,24 @@ export function wrapProject(config, uploadedFiles) {
             rootPrefix = entryPath.substring(0, lastSlash + 1);
         }
     } else {
-        // Fallback: If no index.html, assume root is just the common prefix
-        if (validPaths.length > 0) {
-            const firstSlash = validPaths[0].indexOf('/');
-            if (firstSlash !== -1) {
-                const potentialPrefix = validPaths[0].substring(0, firstSlash + 1);
-                if (validPaths.every(p => p.startsWith(potentialPrefix))) {
-                    rootPrefix = potentialPrefix;
+        // Fallback 1: Look for ANY html file if index.html is missing
+        const htmlFiles = validPaths.filter(p => p.toLowerCase().endsWith('.html') || p.toLowerCase().endsWith('.htm'));
+        if (htmlFiles.length > 0) {
+             console.log("⚠️ No index.html found. Using first HTML file found as entry.");
+             entryPath = htmlFiles[0];
+             const lastSlash = entryPath.lastIndexOf('/');
+             if (lastSlash !== -1) {
+                 rootPrefix = entryPath.substring(0, lastSlash + 1);
+             }
+        } else {
+            // Fallback 2: If no html files at all, try to find a common root prefix to organize files
+            if (validPaths.length > 0) {
+                const firstSlash = validPaths[0].indexOf('/');
+                if (firstSlash !== -1) {
+                    const potentialPrefix = validPaths[0].substring(0, firstSlash + 1);
+                    if (validPaths.every(p => p.startsWith(potentialPrefix))) {
+                        rootPrefix = potentialPrefix;
+                    }
                 }
             }
         }
@@ -188,6 +199,11 @@ export function wrapProject(config, uploadedFiles) {
     let detectedEngine = 'vanilla';
 
     console.group('🔍 Project Analysis');
+    console.log(`Input Files: ${Object.keys(uploadedFiles).length}`);
+    if (Object.keys(uploadedFiles).length < 5) {
+        console.log("Files:", Object.keys(uploadedFiles));
+    }
+
     console.log(`Root Prefix identified: "${rootPrefix}"`);
     console.log(`Entry Point: "${entryPath}"`);
 
@@ -296,6 +312,31 @@ export function wrapProject(config, uploadedFiles) {
         // ALWAYS save the main entry as index.html in the root of the webroot
         // This ensures the webview url="index.html" always finds it.
         webRootFiles['index.html'] = encoder.encode(processedIndexHtml);
+    } else {
+        // Critical Fallback: No HTML file was found or processed.
+        // Generate a default index.html so the Devvit app doesn't crash/show 404.
+        console.warn('⚠️ No entry point found. Generating fallback index.html');
+        
+        const fileList = Object.keys(webRootFiles).join('</li><li>');
+        const fallbackHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${title}</title>
+    <style>
+        body { background: #000; color: #fff; font-family: sans-serif; padding: 20px; text-align: center; }
+        ul { text-align: left; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>${title}</h1>
+    <p>No index.html was found in the uploaded assets.</p>
+    <p>Files loaded:</p>
+    <ul><li>${fileList}</li></ul>
+</body>
+</html>`;
+        webRootFiles['index.html'] = encoder.encode(fallbackHTML);
     }
 
     // 4. Finalize webroot
