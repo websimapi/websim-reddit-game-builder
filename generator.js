@@ -219,32 +219,41 @@ export function wrapProject(config, uploadedFiles) {
             relativePath = path.substring(rootPrefix.length);
         }
         
-        // Text analysis for JS/HTML (Case Insensitive)
+        // Check if this is the entry point
+        const isEntry = path === entryPath;
         const lowerPath = path.toLowerCase();
-        if (lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.jsx') || lowerPath.endsWith('.tsx') || lowerPath.endsWith('.html') || lowerPath.endsWith('.htm')) {
+        // Broader check for text files to ensure we catch index.HTML or other variations
+        const isTextFile = lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.jsx') || lowerPath.endsWith('.tsx') || lowerPath.endsWith('.html') || lowerPath.endsWith('.htm') || lowerPath.endsWith('.css') || lowerPath.endsWith('.json') || isEntry;
+
+        if (isTextFile) {
             try {
                 const text = decoder.decode(content);
-                const imports = scanForImports(text);
                 
-                if (imports.length > 0) {
-                    console.log(`Found imports in ${relativePath}:`, imports);
-                    imports.forEach(i => detectedImports.add(i));
+                // Only scan imports for JS/HTML
+                if (lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.jsx') || lowerPath.endsWith('.tsx') || lowerPath.endsWith('.html') || lowerPath.endsWith('.htm')) {
+                    const imports = scanForImports(text);
+                    
+                    if (imports.length > 0) {
+                        console.log(`Found imports in ${relativePath}:`, imports);
+                        imports.forEach(i => detectedImports.add(i));
+                    }
+                    
+                    // Heuristic Engine Detection
+                    if (imports.some(i => i.toLowerCase().includes('phaser'))) detectedEngine = 'phaser';
+                    if (imports.some(i => i.toLowerCase().includes('three')) || imports.some(i => i.includes('@react-three/fiber'))) detectedEngine = 'three';
+                    if (imports.some(i => i.toLowerCase().includes('kaboom'))) detectedEngine = 'kaboom';
+                    if (imports.some(i => i.toLowerCase().includes('babylon'))) detectedEngine = 'babylonjs';
                 }
-                
-                // Heuristic Engine Detection
-                if (imports.some(i => i.toLowerCase().includes('phaser'))) detectedEngine = 'phaser';
-                if (imports.some(i => i.toLowerCase().includes('three')) || imports.some(i => i.includes('@react-three/fiber'))) detectedEngine = 'three';
-                if (imports.some(i => i.toLowerCase().includes('kaboom'))) detectedEngine = 'kaboom';
-                if (imports.some(i => i.toLowerCase().includes('babylon'))) detectedEngine = 'babylonjs';
 
                 // Keep index.html for later modification
-                if (path === entryPath) {
+                if (isEntry) {
+                    console.log(`Entry point matched and processed: ${path}`);
                     processedIndexHtml = text;
                     continue; 
                 }
             } catch (e) {
-                console.warn("Analysis error for " + path, e);
                 // binary or error, skip scan
+                console.warn(`Failed to decode text file: ${path}`, e);
             }
         }
 
@@ -280,17 +289,8 @@ export function wrapProject(config, uploadedFiles) {
         importMap.imports[pkg] = `https://esm.sh/${pkg}`;
     });
 
-    // Fallback: If loop missed the entry file (e.g. extension mismatch), try to grab it now
-    if (!processedIndexHtml && entryPath && uploadedFiles[entryPath]) {
-        try {
-            console.log("⚠️ Retrieving entry point that was missed in scan loop.");
-            processedIndexHtml = decoder.decode(uploadedFiles[entryPath]);
-        } catch (e) {
-            console.error("Failed to decode entry path content", e);
-        }
-    }
-
-    if (processedIndexHtml) {
+    if (processedIndexHtml !== null) {
+        console.log("Processing entry point HTML...");
         // A. Import Map
         const importMapScript = `\n<script type="importmap">\n${JSON.stringify(importMap, null, 2)}\n</script>\n`;
         
@@ -363,11 +363,11 @@ export function wrapProject(config, uploadedFiles) {
 function scanForImports(code) {
     const imports = new Set();
     // Static imports
-    const regex = /import\s+(?:[\s\S]*?from\s+)?['"]([^'"]+)['"]/gi;
+    const regex = /import\s+(?:[\s\S]*?from\s+)?['"]([^'"]+)['"]/g;
     // Dynamic imports
-    const dynamicRegex = /import\(['"]([^'"]+)['"]\)/gi; 
+    const dynamicRegex = /import\(['"]([^'"]+)['"]\)/g; 
     // CDN links in HTML
-    const scriptSrcRegex = /<script[^>]+src=['"]([^'"]+)['"]/gi;
+    const scriptSrcRegex = /<script[^>]+src=['"]([^'"]+)['"]/g;
 
     let match;
     

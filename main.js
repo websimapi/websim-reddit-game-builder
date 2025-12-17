@@ -168,7 +168,7 @@ async function handleFile(file) {
                 // Normalize path (fix Windows backslashes)
                 const normalizedPath = relativePath.replace(/\\/g, '/');
 
-                if (normalizedPath.toLowerCase().includes('index.html')) hasIndexHtml = true;
+                if (normalizedPath.includes('index.html')) hasIndexHtml = true;
                 
                 // Store promise to read file
                 const promise = zipEntry.async('uint8array').then(content => {
