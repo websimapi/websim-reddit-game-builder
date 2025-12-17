@@ -1,14 +1,18 @@
 // Helper to get standard dependencies
 function getDependencies(features, engine = 'vanilla') {
     const deps = {
-        "@devvit/public-api": "latest",
-        "react": "latest",
-        "react-dom": "latest"
+        "@devvit/public-api": "*",
+        "@devvit/runtime": "*",
+        "react": "*",
+        "react-dom": "*"
     };
 
-    if (features.media) deps["@devvit/media"] = "latest";
-    if (engine === 'phaser') deps["phaser"] = "latest";
-    if (engine === 'three') deps["three"] = "latest";
+    if (features.media) deps["@devvit/media"] = "*";
+    
+    // We keep these in package.json for reference, 
+    // but client-side they are handled via Import Maps
+    if (engine === 'phaser') deps["phaser"] = "*";
+    if (engine === 'three') deps["three"] = "*";
     
     return deps;
 }
@@ -29,11 +33,11 @@ function getPackageJson(config, deps) {
         },
         dependencies: deps,
         devDependencies: {
-            "devvit": "latest",
-            "typescript": "latest",
-            "@types/react": "latest",
-            "@types/react-dom": "latest",
-            "esbuild": "latest" 
+            "devvit": "*",
+            "typescript": "*",
+            "@types/react": "*",
+            "@types/react-dom": "*",
+            "esbuild": "*" 
         }
     }, null, 2);
 }
@@ -59,6 +63,7 @@ function getTsConfig() {
 function getDevvitYaml(slug) {
     return `name: ${slug}
 version: 0.0.1
+webroot: webroot
 `;
 }
 
@@ -67,8 +72,16 @@ function getReadme(slug, title) {
     return `# ${title}
 
 ## Version
-This project is configured to use the \`latest\` version of Devvit.
-If you encounter version errors, try deleting \`node_modules\` and \`package-lock.json\`, then run \`npm install\` again.
+This project is configured to use the latest compatible versions.
+If you encounter version errors, try running:
+\`\`\`bash
+npm install --legacy-peer-deps
+\`\`\`
+
+## Dependencies & Import Maps
+For uploaded web projects, dependencies (like three.js, phaser) are handled via **Import Maps** injected into your \`index.html\`.
+This allows your game to run in the browser without a complex bundler setup.
+If you add new imports to your code, ensure they are compatible with ESM (ES Modules).
 
 ## CLI Update
 Ensure your global Devvit CLI is up to date:
@@ -126,7 +139,7 @@ export function wrapProject(config, uploadedFiles) {
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
     files['tsconfig.json'] = getTsConfig();
     
-    // Package.json - General deps since we don't know the engine
+    // Package.json
     const deps = getDependencies(features, 'vanilla');
     files['package.json'] = getPackageJson(config, deps);
 
@@ -136,45 +149,137 @@ export function wrapProject(config, uploadedFiles) {
     // Bridge
     files['bridge.js'] = `console.log("Bridge connected for ${slug}!");`;
 
-    // Server Code (src/main.tsx)
-    // For wrapped projects, we assume 'index.html' is the entry point
+    // Server Code
     files['src/main.tsx'] = generateServerCode(config, 'index.html');
 
-    // Content
-    // We need to place uploaded files into 'webroot'.
-    // If the zip has a root folder (e.g. game/index.html), we might want to flatten it,
-    // but for safety, we'll just put everything in webroot and locate index.html.
-    // NOTE: Devvit expects webroot to be flat or configured. The simplest is putting everything in `webroot`.
+    // --- content processing ---
     
-    // Check if there is a single top-level directory and strip it if needed
-    // Filter out system files first to get accurate paths
+    // 1. Locate the entry point (index.html)
     const validPaths = Object.keys(uploadedFiles).filter(p => !p.startsWith('__MACOSX') && !p.includes('.DS_Store'));
     
-    let commonPrefix = "";
-    if (validPaths.length > 0) {
-        const firstSlash = validPaths[0].indexOf('/');
-        if (firstSlash !== -1) {
-            const potentialPrefix = validPaths[0].substring(0, firstSlash + 1);
-            if (validPaths.every(p => p.startsWith(potentialPrefix))) {
-                commonPrefix = potentialPrefix;
+    // Find all index.html files
+    const indexFiles = validPaths.filter(p => p.toLowerCase().endsWith('index.html') || p.toLowerCase().endsWith('index.htm'));
+    
+    // Sort by path length (shortest first) to prioritize root index.html
+    indexFiles.sort((a, b) => a.length - b.length);
+    
+    let entryPath = "";
+    let rootPrefix = "";
+
+    if (indexFiles.length > 0) {
+        entryPath = indexFiles[0];
+        // The root is the folder containing this file
+        const lastSlash = entryPath.lastIndexOf('/');
+        if (lastSlash !== -1) {
+            rootPrefix = entryPath.substring(0, lastSlash + 1);
+        }
+    } else {
+        // Fallback: If no index.html, assume root is just the common prefix
+        if (validPaths.length > 0) {
+            const firstSlash = validPaths[0].indexOf('/');
+            if (firstSlash !== -1) {
+                const potentialPrefix = validPaths[0].substring(0, firstSlash + 1);
+                if (validPaths.every(p => p.startsWith(potentialPrefix))) {
+                    rootPrefix = potentialPrefix;
+                }
             }
         }
     }
 
-    // Copy files
+    // 2. Scan imports and prepare files
+    const detectedImports = new Set();
+    const decoder = new TextDecoder('utf-8');
+    const encoder = new TextEncoder();
+
+    let processedIndexHtml = null;
+    const webRootFiles = {};
+
     for (const [path, content] of Object.entries(uploadedFiles)) {
         // Skip system files
         if (path.startsWith('__MACOSX') || path.includes('.DS_Store')) continue;
 
-        let cleanPath = path;
-        if (commonPrefix && path.startsWith(commonPrefix)) {
-            cleanPath = path.substring(commonPrefix.length);
+        // Skip files not under the decided root
+        if (rootPrefix && !path.startsWith(rootPrefix)) continue;
+
+        let relativePath = path;
+        if (rootPrefix) {
+            relativePath = path.substring(rootPrefix.length);
         }
         
-        files[`webroot/${cleanPath}`] = content;
+        // Scan JS/HTML for imports
+        if (path.endsWith('.js') || path.endsWith('.mjs') || path.endsWith('.html')) {
+            try {
+                const text = decoder.decode(content);
+                const imports = scanForImports(text);
+                imports.forEach(i => detectedImports.add(i));
+                
+                // Keep index.html for later modification
+                if (path === entryPath) {
+                    processedIndexHtml = text;
+                    continue; // We will write this last
+                }
+            } catch (e) {
+                // binary or error, skip scan
+            }
+        }
+
+        webRootFiles[relativePath] = content;
     }
+
+    // 3. Generate Import Map
+    const importMap = {
+        imports: {}
+    };
     
+    detectedImports.forEach(pkg => {
+        // Default to esm.sh for generic packages
+        importMap.imports[pkg] = `https://esm.sh/${pkg}`;
+    });
+
+    // 4. Inject Import Map into Index.html
+    if (processedIndexHtml) {
+        const importMapScript = `\n<script type="importmap">\n${JSON.stringify(importMap, null, 2)}\n</script>\n`;
+        
+        // Inject safely
+        if (processedIndexHtml.includes('</head>')) {
+            processedIndexHtml = processedIndexHtml.replace('</head>', `${importMapScript}</head>`);
+        } else if (processedIndexHtml.includes('<body')) {
+            processedIndexHtml = processedIndexHtml.replace('<body', `${importMapScript}<body`);
+        } else {
+            processedIndexHtml = `${importMapScript}${processedIndexHtml}`;
+        }
+        
+        webRootFiles['index.html'] = encoder.encode(processedIndexHtml);
+    }
+
+    // 5. Finalize webroot
+    for (const [path, content] of Object.entries(webRootFiles)) {
+        files[`webroot/${path}`] = content;
+    }
+
     return files;
+}
+
+// Helper: Scan text for module imports
+function scanForImports(code) {
+    const imports = new Set();
+    const regex = /import\s+(?:[\s\S]*?from\s+)?['"]([^'"]+)['"]/g; // Simple static import
+    const dynamicRegex = /import\(['"]([^'"]+)['"]\)/g; // Dynamic import
+    
+    let match;
+    while ((match = regex.exec(code)) !== null) {
+        const mod = match[1];
+        if (!mod.startsWith('.') && !mod.startsWith('/') && !mod.startsWith('http')) {
+            imports.add(mod);
+        }
+    }
+    while ((match = dynamicRegex.exec(code)) !== null) {
+        const mod = match[1];
+        if (!mod.startsWith('.') && !mod.startsWith('/') && !mod.startsWith('http')) {
+            imports.add(mod);
+        }
+    }
+    return Array.from(imports);
 }
 
 export function generateProject(config) {
