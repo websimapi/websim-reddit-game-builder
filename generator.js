@@ -142,11 +142,18 @@ export function wrapProject(config, uploadedFiles) {
     // --- 1. Analyze Content First ---
     
     // Locate the entry point (index.html)
-    const validPaths = Object.keys(uploadedFiles).filter(p => !p.startsWith('__MACOSX') && !p.includes('.DS_Store'));
+    // Filter out MacOS artifacts and ensure we only look at relevant files
+    const validPaths = Object.keys(uploadedFiles).filter(p => !p.startsWith('__MACOSX') && !p.includes('.DS_Store') && !p.includes('._'));
     
     const indexFiles = validPaths.filter(p => p.toLowerCase().endsWith('index.html') || p.toLowerCase().endsWith('index.htm'));
     // Sort by path length (shortest first) to prioritize root index.html
-    indexFiles.sort((a, b) => a.length - b.length);
+    // However, we should prefer index.html that are NOT in a 'node_modules' or hidden folder if possible
+    indexFiles.sort((a, b) => {
+        // Penalty for node_modules
+        const aScore = (a.includes('node_modules') ? 1000 : 0) + a.length;
+        const bScore = (b.includes('node_modules') ? 1000 : 0) + b.length;
+        return aScore - bScore;
+    });
     
     let entryPath = "";
     let rootPrefix = "";
@@ -181,8 +188,8 @@ export function wrapProject(config, uploadedFiles) {
     let detectedEngine = 'vanilla';
 
     for (const [path, content] of Object.entries(uploadedFiles)) {
-        // Skip system files
-        if (path.startsWith('__MACOSX') || path.includes('.DS_Store')) continue;
+        // Skip system files and mac artifacts
+        if (path.startsWith('__MACOSX') || path.includes('.DS_Store') || path.includes('._')) continue;
 
         // Skip files not under the decided root
         if (rootPrefix && !path.startsWith(rootPrefix)) continue;
@@ -336,6 +343,7 @@ export function generateProject(config) {
 function generateServerCode(config, entryFile = 'index.html') {
     // Ensure entryFile is simple
     const webViewUrl = entryFile.split('/').pop(); 
+    const safeTitle = JSON.stringify(config.title);
     
     return `import { Devvit, useState } from '@devvit/public-api';
 
@@ -357,8 +365,13 @@ Devvit.addMenuItem({
 
         const subreddit = await reddit.getCurrentSubreddit();
         const post = await reddit.submitPost({
-            title: '${config.title}',
+            title: ${safeTitle},
             subredditName: subreddit.name,
+            // The preview configuration is critical for custom posts
+            preview: {
+                title: ${safeTitle},
+                text: 'Loading game...',
+            }
         });
         
         ui.showToast("Game post created!");
@@ -368,11 +381,11 @@ Devvit.addMenuItem({
 
 // Custom Post Type definition
 Devvit.addCustomPostType({
-    name: '${config.title}', // Matches the display title
-    height: 'tall', // Forces 1:1 aspect ratio roughly, or tall vertical
+    name: 'InteractivePost',
+    height: 'tall',
     render: (context) => {
         return (
-            <vstack grow height="100%">
+            <vstack grow>
                 <webview
                     id="game-view"
                     url="${webViewUrl}"
@@ -382,7 +395,7 @@ Devvit.addCustomPostType({
                         if (data.type === 'get-config') {
                             context.ui.webView.postMessage('game-view', {
                                 type: 'config',
-                                payload: { title: "${config.title}" }
+                                payload: { title: ${safeTitle} }
                             });
                         }
                     }}
@@ -453,7 +466,7 @@ class MainScene extends Phaser.Scene {
     }
     create() {
         this.add.image(400, 300, 'sky');
-        const text = this.add.text(400, 300, '${config.title}', { fontSize: '32px', fill: '#fff' });
+        const text = this.add.text(400, 300, ${JSON.stringify(config.title)}, { fontSize: '32px', fill: '#fff' });
         text.setOrigin(0.5);
     }
 }
@@ -491,7 +504,7 @@ animate();
 `;
     } else {
         setupCode += `
-gameContainer.innerHTML = '<h1>${config.title}</h1><button id="btn">Interact</button>';
+gameContainer.innerHTML = '<h1>' + ${JSON.stringify(config.title)} + '</h1><button id="btn">Interact</button>';
 document.getElementById('btn').onclick = () => {
     window.parent.postMessage({ type: 'click', data: 'hello' }, '*');
 };
