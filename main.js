@@ -101,11 +101,14 @@ async function handleFile(file) {
         const promises = [];
         zip.forEach((relativePath, zipEntry) => {
             if (!zipEntry.dir) {
-                if (relativePath.includes('index.html')) hasIndexHtml = true;
+                // Normalize path (fix Windows backslashes)
+                const normalizedPath = relativePath.replace(/\\/g, '/');
+
+                if (normalizedPath.includes('index.html')) hasIndexHtml = true;
                 
                 // Store promise to read file
                 const promise = zipEntry.async('uint8array').then(content => {
-                    files[relativePath] = content;
+                    files[normalizedPath] = content;
                 });
                 promises.push(promise);
             }

@@ -62,7 +62,6 @@ function getTsConfig() {
 // Generates the devvit.yaml
 function getDevvitYaml(slug) {
     return `name: ${slug}
-version: 0.0.1
 webroot: webroot
 `;
 }
@@ -232,6 +231,12 @@ export function wrapProject(config, uploadedFiles) {
     } else if (entryPath) {
         relativeEntry = entryPath;
     }
+    
+    // Ensure no leading slash in the URL
+    if (relativeEntry.startsWith('/')) {
+        relativeEntry = relativeEntry.substring(1);
+    }
+    
     files['src/main.tsx'] = generateServerCode(config, relativeEntry);
 
     // --- 3. Inject Helpers (Import Map, Viewport, CSS) ---
@@ -366,23 +371,27 @@ Devvit.addCustomPostType({
     height: 'tall',
     render: (context) => {
         return (
-            <vstack height="100%" width="100%">
-                <webview
-                    id="game-view"
-                    url="${entryFile}"
-                    height="100%"
-                    width="100%"
-                    onMessage={async (msg) => {
-                        const data = msg as any;
-                        // Basic Bridge for Features
-                        if (data.type === 'get-config') {
-                            context.ui.webView.postMessage('game-view', {
-                                type: 'config',
-                                payload: { title: "${config.title}" }
-                            });
-                        }
-                    }}
-                />
+            <vstack grow>
+                <zstack grow>
+                    <vstack width="100%" height="100%" alignment="center middle">
+                        <text>Loading Game...</text>
+                    </vstack>
+                    <webview
+                        id="game-view"
+                        url="${entryFile}"
+                        grow
+                        onMessage={async (msg) => {
+                            const data = msg as any;
+                            // Basic Bridge for Features
+                            if (data.type === 'get-config') {
+                                context.ui.webView.postMessage('game-view', {
+                                    type: 'config',
+                                    payload: { title: "${config.title}" }
+                                });
+                            }
+                        }}
+                    />
+                </zstack>
             </vstack>
         );
     }
