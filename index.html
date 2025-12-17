@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reddit Game Builder</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="builder_logo.png">
+    <script type="importmap">
+    {
+        "imports": {
+            "jszip": "https://esm.sh/jszip"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="builder_logo.png" alt="Logo" class="logo">
+            <h1>Reddit Game Builder</h1>
+            <p>Configure your game and download the source code ready for Devvit.</p>
+        </header>
+
+        <main>
+            <section class="config-card">
+                <h2>1. Game Identity</h2>
+                <div class="form-group">
+                    <label for="gameName">Project Name (Slug)</label>
+                    <input type="text" id="gameName" placeholder="my-reddit-game" value="my-reddit-game">
+                    <small>Used for folder names and package.json</small>
+                </div>
+                <div class="form-group">
+                    <label for="gameTitle">Display Title</label>
+                    <input type="text" id="gameTitle" placeholder="Super Reddit Quest" value="Super Reddit Quest">
+                </div>
+            </section>
+
+            <section class="config-card">
+                <h2>2. Engine & Type</h2>
+                <div class="grid-options" id="engineOptions">
+                    <div class="option-card selected" data-value="vanilla">
+                        <h3>DOM / Vanilla JS</h3>
+                        <p>Best for UI-based games, quizzes, and idle games.</p>
+                    </div>
+                    <div class="option-card" data-value="phaser">
+                        <h3>Phaser.js</h3>
+                        <p>2D Game Engine. Best for platformers, RPGs, and arcade games.</p>
+                    </div>
+                    <div class="option-card" data-value="three">
+                        <h3>Three.js</h3>
+                        <p>3D Library. Best for 3D environments and visualizations.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="config-card">
+                <h2>3. Features</h2>
+                <div class="checkbox-group">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="feat-leaderboard" checked>
+                        <span class="checkmark"></span>
+                        <div>
+                            <strong>Global Leaderboard</strong>
+                            <p>Redis-backed high score tracking.</p>
+                        </div>
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="feat-multiplayer">
+                        <span class="checkmark"></span>
+                        <div>
+                            <strong>Realtime Multiplayer</strong>
+                            <p>Sync state between players using Devvit Realtime.</p>
+                        </div>
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="feat-media">
+                        <span class="checkmark"></span>
+                        <div>
+                            <strong>Media Uploads</strong>
+                            <p>Allow users to upload avatars or game assets.</p>
+                        </div>
+                    </label>
+                </div>
+            </section>
+
+            <section class="action-area">
+                <button id="generateBtn" class="primary-btn">
+                    <span class="icon">⬇</span> Download Project .ZIP
+                </button>
+                <div id="status" class="status-msg"></div>
+            </section>
+        </main>
+
+        <footer>
+            <p>Generated code uses the latest @devvit/web standards.</p>
+        </footer>
+    </div>
+
+    <script type="module" src="main.js"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
