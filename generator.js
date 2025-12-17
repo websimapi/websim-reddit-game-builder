@@ -1,15 +1,15 @@
 // Helper to get standard dependencies
 function getDependencies(features, engine = 'vanilla') {
-    // Using "*" or specific ranges avoids "No matching version" errors for peer deps
+    // Using "latest" prevents 404 errors if specific versions are deprecated or missing from registry
     const deps = {
-        "@devvit/public-api": "^0.10.0", 
-        "@devvit/runtime": "^0.10.0",
-        "react": "^18.0.0",
-        "react-dom": "^18.0.0"
+        "@devvit/public-api": "latest",
+        "react": "latest",
+        "react-dom": "latest"
     };
 
-    if (features.media) deps["@devvit/media"] = "^0.10.0";
-    if (features.multiplayer) deps["@devvit/realtime"] = "^0.10.0";
+    // Note: @devvit/runtime is removed from explicit deps as it often causes 404s and is handled implicitly
+    if (features.media) deps["@devvit/media"] = "latest";
+    if (features.multiplayer) deps["@devvit/realtime"] = "latest";
     
     // We keep these in package.json for reference
     if (engine === 'phaser') deps["phaser"] = "latest";
@@ -34,15 +34,15 @@ function getPackageJson(config, deps) {
         },
         dependencies: deps,
         devDependencies: {
-            "devvit": "^0.10.0",
-            "typescript": "5.3.3", 
-            "@types/react": "^18.0.0",
-            "@types/react-dom": "^18.0.0",
+            "devvit": "latest",
+            "typescript": "latest", 
+            "@types/react": "latest",
+            "@types/react-dom": "latest",
             "esbuild": "latest" 
         },
         "peerDependencies": {
-             "react": "^18.0.0",
-             "react-dom": "^18.0.0"
+             "react": "latest",
+             "react-dom": "latest"
         }
     }, null, 2);
 }
@@ -76,11 +76,12 @@ function getReadme(slug, title) {
     return `# ${title}
 
 ## Version
-This project is configured to use the latest compatible versions.
-If you encounter version errors, try running:
-\`\`\`bash
-npm install --legacy-peer-deps
-\`\`\`
+This project is configured to use the "latest" available versions of Devvit packages.
+This prevents 404 errors when specific versions are not found in the registry.
+
+If you encounter installation errors:
+1. Try running: \`npm install --legacy-peer-deps\`
+2. Ensure you are logged in to npm or have public registry access.
 
 ## Dependencies & Import Maps
 For uploaded web projects, dependencies (like three.js, phaser) are handled via **Import Maps** injected into your \`index.html\`.
