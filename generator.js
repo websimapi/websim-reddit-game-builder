@@ -219,8 +219,9 @@ export function wrapProject(config, uploadedFiles) {
             relativePath = path.substring(rootPrefix.length);
         }
         
-        // Text analysis for JS/HTML
-        if (path.endsWith('.js') || path.endsWith('.mjs') || path.endsWith('.jsx') || path.endsWith('.tsx') || path.endsWith('.html') || path.endsWith('.htm')) {
+        // Text analysis for JS/HTML (Case Insensitive)
+        const lowerPath = path.toLowerCase();
+        if (lowerPath.endsWith('.js') || lowerPath.endsWith('.mjs') || lowerPath.endsWith('.jsx') || lowerPath.endsWith('.tsx') || lowerPath.endsWith('.html') || lowerPath.endsWith('.htm')) {
             try {
                 const text = decoder.decode(content);
                 const imports = scanForImports(text);
@@ -242,6 +243,7 @@ export function wrapProject(config, uploadedFiles) {
                     continue; 
                 }
             } catch (e) {
+                console.warn("Analysis error for " + path, e);
                 // binary or error, skip scan
             }
         }
@@ -277,6 +279,16 @@ export function wrapProject(config, uploadedFiles) {
     detectedImports.forEach(pkg => {
         importMap.imports[pkg] = `https://esm.sh/${pkg}`;
     });
+
+    // Fallback: If loop missed the entry file (e.g. extension mismatch), try to grab it now
+    if (!processedIndexHtml && entryPath && uploadedFiles[entryPath]) {
+        try {
+            console.log("⚠️ Retrieving entry point that was missed in scan loop.");
+            processedIndexHtml = decoder.decode(uploadedFiles[entryPath]);
+        } catch (e) {
+            console.error("Failed to decode entry path content", e);
+        }
+    }
 
     if (processedIndexHtml) {
         // A. Import Map
@@ -351,11 +363,11 @@ export function wrapProject(config, uploadedFiles) {
 function scanForImports(code) {
     const imports = new Set();
     // Static imports
-    const regex = /import\s+(?:[\s\S]*?from\s+)?['"]([^'"]+)['"]/g;
+    const regex = /import\s+(?:[\s\S]*?from\s+)?['"]([^'"]+)['"]/gi;
     // Dynamic imports
-    const dynamicRegex = /import\(['"]([^'"]+)['"]\)/g; 
+    const dynamicRegex = /import\(['"]([^'"]+)['"]\)/gi; 
     // CDN links in HTML
-    const scriptSrcRegex = /<script[^>]+src=['"]([^'"]+)['"]/g;
+    const scriptSrcRegex = /<script[^>]+src=['"]([^'"]+)['"]/gi;
 
     let match;
     
