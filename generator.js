@@ -2,29 +2,15 @@ export function generateProject(config) {
     const files = {};
     const { slug, title, engine, features } = config;
 
-    // --- 1. devvit.json ---
-    const devvitConfig = {
-        name: slug,
-        version: "0.0.1",
-        versioning: {
-            "source": "package.json"
-        },
-        permissions: {
-            // Basic permissions
-        }
-    };
-
-    if (features.media) {
-        devvitConfig.permissions.media = true;
-    }
-
-    files['devvit.json'] = JSON.stringify(devvitConfig, null, 2);
+    // --- 1. devvit.yaml (Replaces devvit.json) ---
+    files['devvit.yaml'] = `name: ${slug}
+version: 0.0.1
+`;
 
     // --- 2. package.json ---
     const deps = {
         "@devvit/public-api": "latest",
-        "@devvit/web": "latest",
-        "@devvit/redis": "latest" // Always useful
+        "@devvit/web": "latest"
     };
 
     if (features.media) deps["@devvit/media"] = "latest";
@@ -36,6 +22,7 @@ export function generateProject(config) {
         version: "0.0.1",
         description: `A Reddit game: ${title}`,
         type: "module",
+        main: "src/main.tsx",
         scripts: {
             "dev": "devvit playtest",
             "build": "devvit build",
@@ -67,17 +54,17 @@ export function generateProject(config) {
     }, null, 2);
 
 
-    // --- 4. Server Code (src/server/index.ts) ---
-    files['src/server/index.ts'] = generateServerCode(config);
+    // --- 4. Server Code (src/main.tsx) ---
+    files['src/main.tsx'] = generateServerCode(config);
 
-    // --- 5. Client HTML (src/client/index.html) ---
-    files['src/client/index.html'] = generateClientHTML(config);
-
-    // --- 6. Client Code (src/client/client.js) ---
-    files['src/client/client.js'] = generateClientJS(config);
-
-    // --- 7. Styles (src/client/style.css) ---
-    files['src/client/style.css'] = generateClientCSS(config);
+    // --- 5. Client HTML (src/webroot/index.html) ---
+    // Note: Devvit expects web assets in a 'webroot' folder or configured path. 
+    // We'll put them in src/webroot and user can configure vite if needed, 
+    // but for simple playtest, putting them alongside might be easier.
+    // For now, let's keep it simple.
+    files['webroot/index.html'] = generateClientHTML(config);
+    files['webroot/client.js'] = generateClientJS(config);
+    files['webroot/style.css'] = generateClientCSS(config);
 
     // --- 8. Bridge / README ---
     files['README.md'] = `# ${title}
@@ -105,93 +92,8 @@ console.log("Run 'npm run dev' to start the actual Devvit app.");
 }
 
 function generateServerCode(config) {
-    const imports = [
-        `import { Devvit } from '@devvit/public-api';`,
-        `import { context, redis, cache } from '@devvit/web/server';`
-    ];
-    
-    if (config.features.media) imports.push(`import { media } from '@devvit/media';`);
-
-    let endpointCode = `
-// Basic Configuration Endpoint
-context.app.get('/api/config', async (req, res) => {
-    // Examples of using settings (configure these in your app settings page)
-    const maxPlayers = await context.settings.get('maxPlayers') || 100;
-    const difficulty = await context.settings.get('difficulty') || 'normal';
-
-    res.json({ 
-        gameTitle: "${config.title}",
-        maxPlayers,
-        difficulty
-    });
-});
-`;
-
-    // Leaderboard Feature
-    if (config.features.leaderboard) {
-        endpointCode += `
-// Leaderboard: Submit Score
-context.app.post('/api/submit-score', async (req, res) => {
-    const { score } = req.body;
-    const userId = context.userId;
-    
-    if (!userId) return res.status(401).json({ error: 'Not logged in' });
-
-    // Store in global leaderboard
-    await redis.zAdd('global_leaderboard', { member: userId, score });
-    
-    // Get rank
-    const rank = await redis.zRank('global_leaderboard', userId);
-    
-    res.json({ success: true, rank });
-});
-
-// Leaderboard: Get Top Scores (Cached)
-context.app.get('/api/leaderboard', async (req, res) => {
-    const scores = await cache(
-        async () => {
-            return await redis.zRange('global_leaderboard', 0, 9, { 
-                reverse: true, 
-                withScores: true 
-            });
-        },
-        { key: 'leaderboard-top-10', ttl: 30 } // Cache for 30s
-    );
-    res.json(scores);
-});
-`;
-    }
-
-    // Multiplayer Feature
-    if (config.features.multiplayer) {
-        endpointCode += `
-// Realtime: Game State
-context.app.post('/api/gamestate', async (req, res) => {
-    const { postId } = context;
-    // Broadcast update to all listeners on this post
-    await context.realtime.send(\`game:\${postId}\`, {
-        type: 'update',
-        data: req.body
-    });
-    res.json({ ok: true });
-});
-`;
-    }
-
-    // Media Feature
-    if (config.features.media) {
-        endpointCode += `
-// Media: Upload
-context.app.post('/api/upload-avatar', async (req, res) => {
-    const { url } = req.body;
-    const result = await media.upload({ url, type: 'image' });
-    res.json({ url: result.mediaUrl });
-});
-`;
-    }
-
-    return `
-${imports.join('\n')}
+    // Generate valid Devvit Main Entry
+    return `import { Devvit, useState } from '@devvit/public-api';
 
 Devvit.configure({
     redditAPI: true,
@@ -200,14 +102,33 @@ Devvit.configure({
     ${config.features.multiplayer ? 'realtime: true,' : ''}
 });
 
-// Add a custom post type for the game
 Devvit.addCustomPostType({
     name: '${config.title}',
     height: 'tall',
-    render: context.render
+    render: (context) => {
+        return (
+            <vstack height="100%" width="100%">
+                <webview
+                    id="game-view"
+                    url="index.html"
+                    height="100%"
+                    width="100%"
+                    onMessage={async (msg) => {
+                        const data = msg as any;
+                        // Basic Bridge for Features
+                        if (data.type === 'get-config') {
+                            context.ui.webView.postMessage('game-view', {
+                                type: 'config',
+                                payload: { title: "${config.title}" }
+                            });
+                        }
+                        // Add more handlers here for leaderboard/redis
+                    }}
+                />
+            </vstack>
+        );
+    }
 });
-
-${endpointCode}
 
 export default Devvit;
 `;
@@ -242,10 +163,21 @@ body { margin: 0; padding: 0; overflow: hidden; background: #000; color: white; 
 }
 
 function generateClientJS(config) {
-    const imports = [`import { context } from '@devvit/web/client';`];
+    // Basic client structure
+    const imports = [];
     let setupCode = `
 // Initial Setup
 const gameContainer = document.getElementById('game-container');
+
+// Basic communication with Devvit Parent
+window.addEventListener('message', (ev) => {
+    if (ev.data.type === 'config') {
+        console.log('Config received:', ev.data.payload);
+    }
+});
+
+// Request config
+window.parent.postMessage({ type: 'get-config' }, '*');
 `;
 
     if (config.engine === 'phaser') {
@@ -256,25 +188,11 @@ class MainScene extends Phaser.Scene {
     preload() {
         this.load.setBaseURL('https://labs.phaser.io');
         this.load.image('sky', 'assets/skies/space3.png');
-        this.load.image('logo', 'assets/sprites/phaser3-logo.png');
     }
     create() {
         this.add.image(400, 300, 'sky');
-        const logo = this.add.image(400, 150, 'logo');
-        
-        this.tweens.add({
-            targets: logo,
-            y: 450,
-            duration: 2000,
-            ease: "Power2",
-            yoyo: true,
-            loop: -1
-        });
-        
-        // Example: Send score on click
-        this.input.on('pointerdown', async () => {
-             ${config.features.leaderboard ? 'await submitScore(100);' : 'console.log("Click!");'}
-        });
+        const text = this.add.text(400, 300, '${config.title}', { fontSize: '32px', fill: '#fff' });
+        text.setOrigin(0.5);
     }
 }
 
@@ -283,7 +201,6 @@ const config = {
     width: window.innerWidth,
     height: window.innerHeight,
     parent: 'game-container',
-    physics: { default: 'arcade' },
     scene: MainScene
 };
 
@@ -292,20 +209,16 @@ new Phaser.Game(config);
     } else if (config.engine === 'three') {
         imports.push(`import * as THREE from 'three';`);
         setupCode += `
-// Three.js Setup
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 gameContainer.appendChild(renderer.domElement);
-
 const geometry = new THREE.BoxGeometry();
 const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
 const cube = new THREE.Mesh(geometry, material);
 scene.add(cube);
-
 camera.position.z = 5;
-
 function animate() {
     requestAnimationFrame(animate);
     cube.rotation.x += 0.01;
@@ -313,71 +226,18 @@ function animate() {
     renderer.render(scene, camera);
 }
 animate();
-
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
 `;
     } else {
-        // Vanilla
         setupCode += `
-// Vanilla JS Setup
-gameContainer.innerHTML = '<h1>${config.title}</h1><button id="clickMe">Click Me</button>';
-const btn = document.getElementById('clickMe');
-btn.onclick = async () => {
-    alert('Clicked!');
-    ${config.features.leaderboard ? 'await submitScore(50);' : ''}
+gameContainer.innerHTML = '<h1>${config.title}</h1><button id="btn">Interact</button>';
+document.getElementById('btn').onclick = () => {
+    window.parent.postMessage({ type: 'click', data: 'hello' }, '*');
 };
-`;
-    }
-
-    let featureFunctions = '';
-    if (config.features.leaderboard) {
-        featureFunctions += `
-async function submitScore(score) {
-    try {
-        const res = await fetch('/api/submit-score', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ score })
-        });
-        const data = await res.json();
-        console.log('New Rank:', data.rank);
-        refreshLeaderboard();
-    } catch(e) { console.error(e); }
-}
-
-async function refreshLeaderboard() {
-    const res = await fetch('/api/leaderboard');
-    const scores = await res.json();
-    const list = document.getElementById('score-list');
-    if(list) {
-        list.innerHTML = scores.map(s => \`<li>\${s.member}: \${s.score}</li>\`).join('');
-        document.getElementById('leaderboard').classList.remove('hidden');
-    }
-}
-`;
-    }
-
-    if (config.features.multiplayer) {
-        imports.push(`import { connectRealtime } from '@devvit/web/client';`);
-        setupCode += `
-// Connect Realtime
-const connection = await connectRealtime({
-    channel: \`game:\${context.postId}\`,
-    onMessage: (msg) => {
-        console.log('Realtime msg:', msg);
-    }
-});
 `;
     }
 
     return `
 ${imports.join('\n')}
-
-${featureFunctions}
 
 (async function init() {
     ${setupCode}
