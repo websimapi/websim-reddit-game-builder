@@ -223,7 +223,7 @@ generateBtn.addEventListener('click', async () => {
         return;
     }
 
-    statusDiv.textContent = (mode === 'upload' || mode === 'websim') ? "Analyzing & converting project..." : "Generating project...";
+    statusDiv.textContent = (mode === 'upload' || mode === 'websim') ? "Formatting code & generating Devvit bundle..." : "Generating project...";
     
     try {
         console.log("Starting generation...");

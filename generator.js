@@ -10,6 +10,7 @@ function uint8ToString(u8) {
 function getBaseFiles(config) {
   const deps = {
     "@devvit/public-api": "latest",
+    "@devvit/tsconfig": "latest",
     "devvit": "latest",
     "typescript": "latest"
   };
@@ -229,11 +230,13 @@ export function generateProject(config) {
       module: "ESNext",
       moduleResolution: "bundler",
       strict: true,
-      jsx: "react-jsx",
-      jsxImportSource: "@devvit/public-api",
+      jsx: "react",
+      jsxFactory: "Devvit.createElement",
+      jsxFragmentFactory: "Devvit.Fragment",
       types: ["@devvit/public-api"],
       lib: ["ES2020", "DOM"],
-      skipLibCheck: true
+      skipLibCheck: true,
+      esModuleInterop: true
     },
     include: ["src"]
   }, null, 2);
@@ -275,7 +278,7 @@ export function wrapProject(config, filesMap) {
     for (const [path, content] of Object.entries(filesMap)) {
       const normalized = path.replace(/\\/g, '/');
       const target = `${webRoot}/${normalized}`;
-      files[target] = uint8ToString(content);
+      files[target] = content;
     }
     entryPath = `${webRoot}/${foundIndex}`;
   } else {
@@ -283,7 +286,7 @@ export function wrapProject(config, filesMap) {
     for (const [path, content] of Object.entries(filesMap)) {
       const normalized = path.replace(/\\/g, '/');
       const target = `${webRoot}/raw/${normalized}`;
-      files[target] = uint8ToString(content);
+      files[target] = content;
     }
   }
 
@@ -296,11 +299,13 @@ export function wrapProject(config, filesMap) {
       module: "ESNext",
       moduleResolution: "bundler",
       strict: true,
-      jsx: "react-jsx",
-      jsxImportSource: "@devvit/public-api",
+      jsx: "react",
+      jsxFactory: "Devvit.createElement",
+      jsxFragmentFactory: "Devvit.Fragment",
       types: ["@devvit/public-api"],
       lib: ["ES2020", "DOM"],
-      skipLibCheck: true
+      skipLibCheck: true,
+      esModuleInterop: true
     },
     include: ["src"]
   }, null, 2);
