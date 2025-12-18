@@ -84,6 +84,7 @@ This project was generated with Reddit Game Builder.
 
 function getMainTsx(config, webviewPath) {
   const features = config.features || {};
+  const gameTitle = config.title.replace(/'/g, "\\'") || "Game";
   
   return `import { Devvit } from '@devvit/public-api';
 
@@ -94,15 +95,42 @@ Devvit.configure({
   ${features.multiplayer ? 'realtime: true,' : ''}
 });
 
+// Defines the custom post type that renders the game
+Devvit.addCustomPostType({
+  name: 'GamePost',
+  height: 'tall',
+  render: (_context) => {
+    return (
+      <vstack height="100%" width="100%" alignment="center middle">
+        <webview
+          id="game-webview"
+          url="${webviewPath}"
+          width="100%"
+          height="100%"
+        />
+      </vstack>
+    );
+  },
+});
+
+// Menu item to create a new game post
 Devvit.addMenuItem({
-  label: 'Play Game',
+  label: 'Create ${gameTitle} Post',
   location: 'subreddit',
-  onPress: async (event, ctx) => {
-    await ctx.ui.showWebView({
-      id: 'game-webview',
-      title: '${config.title.replace(/'/g, "\\'") || "Game"}',
-      url: '${webviewPath}',
-    });
+  onPress: async (_event, context) => {
+    const { reddit, ui } = context;
+    const subreddit = await reddit.getCurrentSubreddit();
+    
+    try {
+      await reddit.submitPost({
+        title: '${gameTitle}',
+        subredditName: subreddit.name,
+      });
+      ui.showToast({ text: 'Created new game post! Refresh to play.' });
+    } catch (error) {
+      console.error(error);
+      ui.showToast({ text: 'Failed to create post' });
+    }
   },
 });
 
