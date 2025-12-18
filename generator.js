@@ -1,31 +1,16 @@
 // Helper to get standard dependencies
-function getDependencies(features, engine = 'vanilla', detectedImports = []) {
-    // Pinned versions for stability to prevent 404s on "latest" tag or registry issues
+function getDependencies(features) {
+    // Server-side dependencies for the Devvit App.
+    // NOTE: We DO NOT include 'react', 'phaser', 'three' or other client libs here.
+    // Client libraries are handled via Import Maps in index.html (Web View).
+    // Including 'react' here causes Dual-React conflicts with Devvit's internal runtime for Blocks.
+    
     const deps = {
-        "@devvit/public-api": "latest",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1"
+        "@devvit/public-api": "latest"
     };
 
     if (features.media) deps["@devvit/media"] = "latest";
     if (features.multiplayer) deps["@devvit/realtime"] = "latest";
-    
-    // Auto-detected dependencies from analysis
-    if (detectedImports && Array.isArray(detectedImports)) {
-        detectedImports.forEach(pkg => {
-            // Basic filtering for valid package names
-            if (!pkg.startsWith('.') && !pkg.startsWith('/') && !pkg.startsWith('http')) {
-                // Ensure it looks like a package (scope/name or name)
-                if (/^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/.test(pkg)) {
-                    deps[pkg] = "latest";
-                }
-            }
-        });
-    }
-
-    // Explicit engine deps
-    if (engine === 'phaser') deps["phaser"] = "latest";
-    if (engine === 'three') deps["three"] = "latest";
     
     return deps;
 }
@@ -48,6 +33,7 @@ function getPackageJson(config, deps) {
         devDependencies: {
             "devvit": "latest",
             "typescript": "latest", 
+            "@devvit/tsconfig": "latest",
             "@types/react": "latest",
             "@types/react-dom": "latest",
             "esbuild": "latest" 
@@ -67,7 +53,8 @@ function getTsConfig() {
             "strict": true,
             "noEmit": true,
             "jsx": "react-jsx",
-            "skipLibCheck": true
+            "skipLibCheck": true,
+            "esModuleInterop": true
         },
         "include": ["src/**/*"]
     }, null, 2);
@@ -315,7 +302,8 @@ export function wrapProject(config, uploadedFiles) {
     files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/';
     files['tsconfig.json'] = getTsConfig();
     
-    const deps = getDependencies(features, detectedEngine, Array.from(detectedImports));
+    // Only add server-side dependencies to package.json
+    const deps = getDependencies(features);
     files['package.json'] = getPackageJson(config, deps);
     files['README.md'] = getReadme(slug, title);
     files['bridge.js'] = `console.log("Bridge connected for ${slug}!");`;
@@ -422,7 +410,7 @@ export function generateProject(config) {
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
     files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/';
     
-    const deps = getDependencies(features, engine);
+    const deps = getDependencies(features);
     files['package.json'] = getPackageJson(config, deps);
     files['tsconfig.json'] = getTsConfig();
 
@@ -476,7 +464,7 @@ Devvit.addMenuItem({
                 // The preview appears while the post loads and signals this is a custom post
                 preview: (
                     <vstack height="100%" width="100%" alignment="middle center">
-                        <text size="large">Loading Game...</text>
+                        <text size="large">Loading...</text>
                     </vstack>
                 ),
             });
