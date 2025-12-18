@@ -1,15 +1,15 @@
 // Helper to get standard dependencies
 function getDependencies(features, engine = 'vanilla', detectedImports = []) {
-    // Using "latest" prevents 404 errors if specific versions are deprecated or missing from registry
+    // Pinned versions for stability to prevent 404s on "latest" tag or registry issues
     const deps = {
-        "@devvit/public-api": "latest",
-        "@devvit/runtime": "latest",
-        "react": "^18.2.0",
-        "react-dom": "^18.2.0"
+        "@devvit/public-api": "^0.11.0",
+        "@devvit/runtime": "^0.11.0",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1"
     };
 
-    if (features.media) deps["@devvit/media"] = "latest";
-    if (features.multiplayer) deps["@devvit/realtime"] = "latest";
+    if (features.media) deps["@devvit/media"] = "^0.11.0";
+    if (features.multiplayer) deps["@devvit/realtime"] = "^0.11.0";
     
     // Auto-detected dependencies from analysis
     if (detectedImports && Array.isArray(detectedImports)) {
@@ -47,7 +47,7 @@ function getPackageJson(config, deps) {
         },
         dependencies: deps,
         devDependencies: {
-            "devvit": "latest",
+            "devvit": "^0.11.0",
             "typescript": "latest", 
             "@types/react": "latest",
             "@types/react-dom": "latest",
@@ -96,7 +96,7 @@ This prevents 404 errors when specific versions are not found in the registry.
 
 If you encounter installation errors:
 1. Try running: \`npm install --legacy-peer-deps\`
-2. Ensure you are logged in to npm or have public registry access.
+2. A \`.npmrc\` file is included to force using the public registry. If you still have issues with "Access token expired", try logging out of npm (\`npm logout\`) or checking your global config.
 
 ## Dependencies & Import Maps
 For uploaded web projects, dependencies (like three.js, phaser) are handled via **Import Maps** injected into your \`index.html\`.
@@ -280,6 +280,7 @@ export function wrapProject(config, uploadedFiles) {
 
     files['devvit.yaml'] = getDevvitYaml(slug);
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
+    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/';
     files['tsconfig.json'] = getTsConfig();
     
     const deps = getDependencies(features, detectedEngine, Array.from(detectedImports));
@@ -387,6 +388,7 @@ export function generateProject(config) {
 
     files['devvit.yaml'] = getDevvitYaml(slug);
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
+    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/';
     
     const deps = getDependencies(features, engine);
     files['package.json'] = getPackageJson(config, deps);
@@ -412,7 +414,7 @@ function generateServerCode(config, entryFile = 'index.html') {
     const webViewUrl = entryFile; 
     const safeTitle = JSON.stringify(config.title);
     
-    return `import { Devvit, useState } from '@devvit/public-api';
+    return `import { Devvit } from '@devvit/public-api';
 
 Devvit.configure({
     redditAPI: true,
