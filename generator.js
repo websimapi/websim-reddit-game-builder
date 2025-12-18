@@ -3,7 +3,6 @@ function getDependencies(features, engine = 'vanilla', detectedImports = []) {
     // Pinned versions for stability to prevent 404s on "latest" tag or registry issues
     const deps = {
         "@devvit/public-api": "latest",
-        "@devvit/runtime": "latest",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"
     };
@@ -90,17 +89,34 @@ webroot: webroot
 function getReadme(slug, title) {
     return `# ${title}
 
-## Troubleshooting Installation (404 Errors / Access Token)
+## 🚨 URGENT: Fix "Access Token Expired" / "404 Not Found" Errors
 
-If you see errors like **"404 Not Found"** or **"Access token expired"** when running \`npm install\`:
+If \`npm install\` fails with **"Access token expired"** or **"404 Not Found"**, your computer has a stuck, expired login token for NPM.
 
-1. **Logout of NPM**: Your machine likely has an old, expired authentication token that is blocking access even to public packages.
+**Solution:**
+Run this command in your terminal to remove the bad token:
+\`\`\`bash
+npm config delete //registry.npmjs.org/:_authToken
+\`\`\`
+Then try installing again:
+\`\`\`bash
+npm install
+\`\`\`
+
+---
+
+## Troubleshooting
+
+1. **Logout of NPM**:
    \`\`\`bash
    npm logout
    \`\`\`
-   Then try \`npm install\` again.
 
-2. **Force Public Registry**: Ensure the included \`.npmrc\` file is present in the project root. It forces the use of the public registry.
+2. **Legacy Peer Deps**:
+   If you see dependency conflicts:
+   \`\`\`bash
+   npm install --legacy-peer-deps
+   \`\`\`
 
 3. **Legacy Peer Deps**:
    \`\`\`bash
@@ -292,7 +308,7 @@ export function wrapProject(config, uploadedFiles) {
 
     files['devvit.yaml'] = getDevvitYaml(slug);
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
-    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/\nalways-auth=false';
+    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/';
     files['tsconfig.json'] = getTsConfig();
     
     const deps = getDependencies(features, detectedEngine, Array.from(detectedImports));
@@ -400,7 +416,7 @@ export function generateProject(config) {
 
     files['devvit.yaml'] = getDevvitYaml(slug);
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
-    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/\nalways-auth=false';
+    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/';
     
     const deps = getDependencies(features, engine);
     files['package.json'] = getPackageJson(config, deps);
