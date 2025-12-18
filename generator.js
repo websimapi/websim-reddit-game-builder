@@ -10,7 +10,6 @@ function uint8ToString(u8) {
 function getBaseFiles(config) {
   const deps = {
     "@devvit/public-api": "latest",
-    "@devvit/tsconfig": "latest",
     "devvit": "latest",
     "typescript": "latest"
   };
@@ -25,11 +24,11 @@ function getBaseFiles(config) {
     type: "module",
     main: "src/main.tsx",
     scripts: {
-      "dev": "devvit upload",
+      "dev": "devvit playtest",
       "build": "devvit build",
       "deploy": "devvit deploy",
-      "setup": "devvit upload",
-      "start": "devvit upload"
+      "upload": "devvit upload",
+      "setup": "devvit upload"
     },
     dependencies: deps
   };
@@ -63,8 +62,8 @@ This project was generated with Reddit Game Builder.
    npm install
    \`\`\`
 
-2. **Run the App**
-   This uploads the app to your test subreddit on Reddit.
+2. **Start Development**
+   This runs the live developer environment (Playtest), watching for changes.
    \`\`\`bash
    npm run dev
    \`\`\`
