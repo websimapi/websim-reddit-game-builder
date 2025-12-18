@@ -9,7 +9,9 @@ function uint8ToString(u8) {
 
 function getBaseFiles(config) {
   const deps = {
-    "@devvit/public-api": "latest"
+    "@devvit/public-api": "latest",
+    "devvit": "latest",
+    "typescript": "latest"
   };
 
   const pkg = {
@@ -162,7 +164,7 @@ export function generateProject(config) {
     compilerOptions: {
       target: "ES2020",
       module: "ESNext",
-      moduleResolution: "Node",
+      moduleResolution: "bundler",
       strict: true,
       jsx: "react-jsx",
       jsxImportSource: "@devvit/public-api",
@@ -225,7 +227,7 @@ export function wrapProject(config, filesMap) {
     compilerOptions: {
       target: "ES2020",
       module: "ESNext",
-      moduleResolution: "Node",
+      moduleResolution: "bundler",
       strict: true,
       jsx: "react-jsx",
       jsxImportSource: "@devvit/public-api",
