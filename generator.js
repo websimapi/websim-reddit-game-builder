@@ -2,14 +2,14 @@
 function getDependencies(features, engine = 'vanilla', detectedImports = []) {
     // Pinned versions for stability to prevent 404s on "latest" tag or registry issues
     const deps = {
-        "@devvit/public-api": "^0.11.0",
-        "@devvit/runtime": "^0.11.0",
+        "@devvit/public-api": "latest",
+        "@devvit/runtime": "latest",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"
     };
 
-    if (features.media) deps["@devvit/media"] = "^0.11.0";
-    if (features.multiplayer) deps["@devvit/realtime"] = "^0.11.0";
+    if (features.media) deps["@devvit/media"] = "latest";
+    if (features.multiplayer) deps["@devvit/realtime"] = "latest";
     
     // Auto-detected dependencies from analysis
     if (detectedImports && Array.isArray(detectedImports)) {
@@ -47,7 +47,7 @@ function getPackageJson(config, deps) {
         },
         dependencies: deps,
         devDependencies: {
-            "devvit": "^0.11.0",
+            "devvit": "latest",
             "typescript": "latest", 
             "@types/react": "latest",
             "@types/react-dom": "latest",
@@ -90,13 +90,25 @@ webroot: webroot
 function getReadme(slug, title) {
     return `# ${title}
 
+## Troubleshooting Installation (404 Errors / Access Token)
+
+If you see errors like **"404 Not Found"** or **"Access token expired"** when running \`npm install\`:
+
+1. **Logout of NPM**: Your machine likely has an old, expired authentication token that is blocking access even to public packages.
+   \`\`\`bash
+   npm logout
+   \`\`\`
+   Then try \`npm install\` again.
+
+2. **Force Public Registry**: Ensure the included \`.npmrc\` file is present in the project root. It forces the use of the public registry.
+
+3. **Legacy Peer Deps**:
+   \`\`\`bash
+   npm install --legacy-peer-deps
+   \`\`\`
+
 ## Version
 This project is configured to use the "latest" available versions of Devvit packages.
-This prevents 404 errors when specific versions are not found in the registry.
-
-If you encounter installation errors:
-1. Try running: \`npm install --legacy-peer-deps\`
-2. A \`.npmrc\` file is included to force using the public registry. If you still have issues with "Access token expired", try logging out of npm (\`npm logout\`) or checking your global config.
 
 ## Dependencies & Import Maps
 For uploaded web projects, dependencies (like three.js, phaser) are handled via **Import Maps** injected into your \`index.html\`.
@@ -280,7 +292,7 @@ export function wrapProject(config, uploadedFiles) {
 
     files['devvit.yaml'] = getDevvitYaml(slug);
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
-    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/';
+    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/\nalways-auth=false';
     files['tsconfig.json'] = getTsConfig();
     
     const deps = getDependencies(features, detectedEngine, Array.from(detectedImports));
@@ -388,7 +400,7 @@ export function generateProject(config) {
 
     files['devvit.yaml'] = getDevvitYaml(slug);
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
-    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/';
+    files['.npmrc'] = 'registry=https://registry.npmjs.org/\n@devvit:registry=https://registry.npmjs.org/\nalways-auth=false';
     
     const deps = getDependencies(features, engine);
     files['package.json'] = getPackageJson(config, deps);
