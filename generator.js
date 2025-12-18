@@ -1,16 +1,30 @@
 // Helper to get standard dependencies
-function getDependencies(features, engine = 'vanilla') {
+function getDependencies(features, engine = 'vanilla', detectedImports = []) {
     // Using "latest" prevents 404 errors if specific versions are deprecated or missing from registry
     const deps = {
+        "@devvit/public-api": "latest",
+        "@devvit/runtime": "latest",
         "react": "^18.2.0",
         "react-dom": "^18.2.0"
     };
 
-    // Note: @devvit/runtime is removed from explicit deps as it often causes 404s and is handled implicitly
     if (features.media) deps["@devvit/media"] = "latest";
     if (features.multiplayer) deps["@devvit/realtime"] = "latest";
     
-    // We keep these in package.json for reference
+    // Auto-detected dependencies from analysis
+    if (detectedImports && Array.isArray(detectedImports)) {
+        detectedImports.forEach(pkg => {
+            // Basic filtering for valid package names
+            if (!pkg.startsWith('.') && !pkg.startsWith('/') && !pkg.startsWith('http')) {
+                // Ensure it looks like a package (scope/name or name)
+                if (/^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/.test(pkg)) {
+                    deps[pkg] = "latest";
+                }
+            }
+        });
+    }
+
+    // Explicit engine deps
     if (engine === 'phaser') deps["phaser"] = "latest";
     if (engine === 'three') deps["three"] = "latest";
     
@@ -34,7 +48,6 @@ function getPackageJson(config, deps) {
         dependencies: deps,
         devDependencies: {
             "devvit": "latest",
-            "@devvit/public-api": "^0.11.9",
             "typescript": "latest", 
             "@types/react": "latest",
             "@types/react-dom": "latest",
@@ -53,13 +66,14 @@ function getTsConfig() {
             "target": "ES2020",
             "module": "ESNext",
             "moduleResolution": "bundler",
-            "lib": ["ES2020", "DOM", "DOM.Iterable"],
+            "lib": ["ES2022", "DOM", "DOM.Iterable"],
             "allowJs": true,
             "checkJs": false,
             "strict": true,
             "noEmit": true,
             "jsx": "react-jsx",
-            "jsxImportSource": "@devvit/public-api"
+            "jsxImportSource": "@devvit/public-api",
+            "skipLibCheck": true
         },
         "include": ["src/**/*"]
     }, null, 2);
@@ -268,7 +282,7 @@ export function wrapProject(config, uploadedFiles) {
     files['.gitignore'] = `node_modules\n.devvit\ndist\n.env\n`;
     files['tsconfig.json'] = getTsConfig();
     
-    const deps = getDependencies(features, detectedEngine);
+    const deps = getDependencies(features, detectedEngine, Array.from(detectedImports));
     files['package.json'] = getPackageJson(config, deps);
     files['README.md'] = getReadme(slug, title);
     files['bridge.js'] = `console.log("Bridge connected for ${slug}!");`;
@@ -328,6 +342,7 @@ function scanForImports(code) {
     const dynamicRegex = /import\(['"]([^'"]+)['"]\)/g; 
     // CDN links in HTML
     const scriptSrcRegex = /<script[^>]+src=['"]([^'"]+)['"]/g;
+    const requireRegex = /require\(['"]([^'"]+)['"]\)/g;
 
     let match;
     
@@ -345,6 +360,14 @@ function scanForImports(code) {
         }
     }
     
+    // CommonJS Requires
+    while ((match = requireRegex.exec(code)) !== null) {
+        const mod = match[1];
+        if (!mod.startsWith('.') && !mod.startsWith('/') && !mod.startsWith('http')) {
+            imports.add(mod);
+        }
+    }
+
     // HTML Scripts (Catch CDN usage)
     while ((match = scriptSrcRegex.exec(code)) !== null) {
         const src = match[1];
