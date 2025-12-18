@@ -38,6 +38,7 @@ function getBaseFiles(config) {
 slug: ${config.slug || "my-reddit-game"}
 version: 0.0.1
 sdk: ^0
+webroot: webview
 permissions:
   - posts
   - comments
@@ -221,7 +222,7 @@ export function generateProject(config) {
 
   files[`${webRoot}/index.html`] = getTemplateIndexHtml(config, engine);
   files[`${webRoot}/main.js`] = getTemplateMainJs(engine);
-  files['src/main.tsx'] = getMainTsx(config, `${webRoot}/index.html`);
+  files['src/main.tsx'] = getMainTsx(config, 'index.html');
   
   // Use a self-contained tsconfig to avoid resolution errors with 'extends'
   files['tsconfig.json'] = JSON.stringify({
@@ -280,12 +281,28 @@ export function wrapProject(config, filesMap) {
       const target = `${webRoot}/${normalized}`;
       files[target] = content;
     }
-    entryPath = `${webRoot}/${foundIndex}`;
+    // With webroot set to 'webview', the URL is relative to that folder
+    entryPath = foundIndex;
   } else {
-    // No index.html detected – just dump everything under webview/raw
+    // No index.html detected – create a placeholder
+    files[`${webRoot}/index.html`] = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Error</title></head>
+<body style="background:#111;color:#f0f0f0;font-family:sans-serif;padding:20px;">
+  <h1>Unable to launch game</h1>
+  <p>No <code>index.html</code> was found in the uploaded files.</p>
+  <p><strong>Files detected:</strong></p>
+  <ul>
+    ${Object.keys(filesMap).map(k => `<li>${k}</li>`).join('')}
+  </ul>
+</body>
+</html>`;
+    entryPath = 'index.html';
+
+    // Dump files anyway so they can be inspected if needed
     for (const [path, content] of Object.entries(filesMap)) {
       const normalized = path.replace(/\\/g, '/');
-      const target = `${webRoot}/raw/${normalized}`;
+      const target = `${webRoot}/${normalized}`;
       files[target] = content;
     }
   }
