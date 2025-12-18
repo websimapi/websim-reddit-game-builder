@@ -10,6 +10,7 @@ function uint8ToString(u8) {
 function getBaseFiles(config) {
   const deps = {
     "@devvit/public-api": "latest",
+    "@devvit/tsconfig": "latest",
     "devvit": "latest",
     "typescript": "latest"
   };
@@ -21,9 +22,10 @@ function getBaseFiles(config) {
     type: "module",
     main: "src/main.tsx",
     scripts: {
-      build: "devvit build",
-      deploy: "devvit deploy",
-      setup: "devvit upload"
+      "dev": "devvit upload",
+      "build": "devvit build",
+      "deploy": "devvit deploy",
+      "setup": "devvit upload"
     },
     dependencies: deps
   };
@@ -45,9 +47,34 @@ media:
   images: []
 `;
 
+  const readme = `# ${config.title || "My Reddit Game"}
+
+This project was generated with Reddit Game Builder.
+
+## Getting Started
+
+1. **Install Dependencies**
+   \`\`\`bash
+   npm install
+   \`\`\`
+
+2. **Run the App**
+   This uploads the app to your test subreddit on Reddit.
+   \`\`\`bash
+   npm run dev
+   \`\`\`
+
+3. **Deploy**
+   When ready to publish a version:
+   \`\`\`bash
+   npm run deploy
+   \`\`\`
+`;
+
   return {
     'package.json': JSON.stringify(pkg, null, 2),
-    'devvit.yaml': devvitYaml
+    'devvit.yaml': devvitYaml,
+    'README.md': readme
   };
 }
 
@@ -161,6 +188,7 @@ export function generateProject(config) {
   files[`${webRoot}/main.js`] = getTemplateMainJs(engine);
   files['src/main.tsx'] = getMainTsx(`${webRoot}/index.html`);
   files['tsconfig.json'] = JSON.stringify({
+    extends: "@devvit/tsconfig/tsconfig.json",
     compilerOptions: {
       target: "ES2020",
       module: "ESNext",
@@ -224,6 +252,7 @@ export function wrapProject(config, filesMap) {
 
   files['src/main.tsx'] = getMainTsx(entryPath);
   files['tsconfig.json'] = JSON.stringify({
+    extends: "@devvit/tsconfig/tsconfig.json",
     compilerOptions: {
       target: "ES2020",
       module: "ESNext",
