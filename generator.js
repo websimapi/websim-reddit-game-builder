@@ -75,6 +75,11 @@ This project was generated with Reddit Game Builder.
    \`\`\`bash
    npm run deploy
    \`\`\`
+
+## Troubleshooting
+
+- If you see "Subreddit id is missing", ensure you are running in a valid subreddit environment.
+- If you have trouble uploading, try running \`npm run setup\` again.
 `;
 
   return {
@@ -86,7 +91,7 @@ This project was generated with Reddit Game Builder.
 
 function getMainTsx(config, webviewPath) {
   const features = config.features || {};
-  const gameTitle = config.title.replace(/'/g, "\\'") || "Game";
+  const gameTitle = config.title || "Game";
   
   return `import { Devvit } from '@devvit/public-api';
 
@@ -117,16 +122,22 @@ Devvit.addCustomPostType({
 
 // Menu item to create a new game post
 Devvit.addMenuItem({
-  label: 'Create ${gameTitle} Post',
+  label: 'Create Game',
   location: 'subreddit',
   onPress: async (_event, context) => {
     const { reddit, ui } = context;
-    const subreddit = await reddit.getCurrentSubreddit();
     
     try {
+      const subreddit = await reddit.getCurrentSubreddit();
       await reddit.submitPost({
-        title: '${gameTitle}',
+        title: ${JSON.stringify(gameTitle)},
         subredditName: subreddit.name,
+        // The preview appears while the post is loading
+        preview: (
+          <vstack height="100%" width="100%" alignment="middle center">
+            <text size="large">Loading Game...</text>
+          </vstack>
+        ),
       });
       ui.showToast({ text: 'Created new game post! Refresh to play.' });
     } catch (error) {
