@@ -51,10 +51,6 @@ function getPackageJson(config, deps) {
             "@types/react": "latest",
             "@types/react-dom": "latest",
             "esbuild": "latest" 
-        },
-        "peerDependencies": {
-             "react": "^18.2.0",
-             "react-dom": "^18.2.0"
         }
     }, null, 2);
 }
@@ -71,7 +67,6 @@ function getTsConfig() {
             "strict": true,
             "noEmit": true,
             "jsx": "react-jsx",
-            "jsxImportSource": "@devvit/public-api",
             "skipLibCheck": true
         },
         "include": ["src/**/*"]
@@ -81,6 +76,7 @@ function getTsConfig() {
 // Generates the devvit.yaml
 function getDevvitYaml(slug) {
     return `name: ${slug}
+version: 0.0.1
 webroot: webroot
 `;
 }
@@ -93,11 +89,19 @@ function getReadme(slug, title) {
 
 If \`npm install\` fails with **"Access token expired"** or **"404 Not Found"**, your computer has a stuck, expired login token for NPM.
 
-**Solution:**
+**Solution 1 (Recommended):**
 Run this command in your terminal to remove the bad token:
 \`\`\`bash
 npm config delete //registry.npmjs.org/:_authToken
 \`\`\`
+
+**Solution 2 (If that fails):**
+Logout and force a config cleanup:
+\`\`\`bash
+npm logout
+npm config delete registry
+\`\`\`
+
 Then try installing again:
 \`\`\`bash
 npm install
