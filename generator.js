@@ -26,35 +26,31 @@ function getPackageJson(config, deps) {
             "dev": "devvit playtest",
             "setup": "devvit upload",
             "build": "devvit build",
-            "upload": "devvit upload",
-            "bridge": "node bridge.js" 
+            "upload": "devvit upload"
         },
         dependencies: deps,
         devDependencies: {
             "devvit": "latest",
-            "typescript": "latest", 
-            "@devvit/tsconfig": "latest",
-            "@types/react": "latest",
-            "@types/react-dom": "latest",
-            "esbuild": "latest" 
+            "typescript": "latest"
         }
     }, null, 2);
 }
 
 function getTsConfig() {
     return JSON.stringify({
+        "extends": "@devvit/tsconfig/tsconfig.json",
         "compilerOptions": {
-            "target": "ES2020",
+            "target": "ES2022",
             "module": "ESNext",
             "moduleResolution": "bundler",
-            "lib": ["ES2022", "DOM", "DOM.Iterable"],
+            "lib": ["ES2022"],
             "allowJs": true,
             "checkJs": false,
             "strict": true,
             "noEmit": true,
-            "jsx": "react-jsx",
             "skipLibCheck": true,
-            "esModuleInterop": true
+            "esModuleInterop": true,
+            "resolveJsonModule": true
         },
         "include": ["src/**/*"]
     }, null, 2);
@@ -461,7 +457,6 @@ Devvit.addMenuItem({
             const post = await reddit.submitPost({
                 title: ${safeTitle},
                 subredditName: currentSubredditName,
-                // The preview appears while the post loads and signals this is a custom post
                 preview: (
                     <vstack height="100%" width="100%" alignment="middle center">
                         <text size="large">Loading...</text>
@@ -485,11 +480,12 @@ Devvit.addCustomPostType({
     height: 'tall',
     render: (context) => {
         return (
-            <vstack grow>
+            <vstack height="100%" width="100%">
                 <webview
                     id="game-view"
                     url="${webViewUrl}"
-                    grow
+                    height="100%"
+                    width="100%"
                     onMessage={async (msg) => {
                         const data = msg as any;
                         if (data.type === 'get-config') {
