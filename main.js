@@ -246,7 +246,7 @@ generateBtn.addEventListener('click', async () => {
         const blob = await zipper.generateBlob();
         saveAs(blob, `${config.slug}.zip`);
         
-        statusDiv.textContent = "Download started! Unzip folder -> Run 'npm install' -> Run 'npm run dev'.";
+        statusDiv.textContent = "Download started! Unzip -> 'npm install' -> 'npm run dev' to playtest.";
         statusDiv.style.color = "#4CAF50";
     } catch (e) {
         console.error(e);
