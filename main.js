@@ -3,8 +3,6 @@ import { ProjectZipper, saveAs } from './zip-utils.js';
 import { parseProjectIdentifier, fetchProjectMetadata, fetchProjectAssets, processAssets } from './websim.js';
 import JSZip from 'jszip';
 
-console.log("Main app initialized");
-
 // State
 let selectedEngine = 'vanilla';
 let mode = 'upload'; // 'upload', 'websim', 'template'
@@ -98,12 +96,8 @@ fetchWebsimBtn.addEventListener('click', async () => {
         websimStatus.textContent = `Successfully loaded ${Object.keys(uploadedZipFiles).length} files! Ready to generate.`;
         websimStatus.style.color = "#4CAF50";
         
-        // Dry run to check for issues
-        try {
-            wrapProject({ slug: 'temp', title: 'temp', features: {} }, uploadedZipFiles);
-        } catch (e) {
-            console.warn("Dry run scan warning:", e);
-        }
+        // Force engine detection in console preview
+        wrapProject({ slug: 'temp', title: 'temp', features: {} }, uploadedZipFiles);
 
     } catch (e) {
         console.error(e);
@@ -232,12 +226,15 @@ generateBtn.addEventListener('click', async () => {
     statusDiv.textContent = (mode === 'upload' || mode === 'websim') ? "Analyzing & converting project..." : "Generating project...";
     
     try {
+        console.log("Starting generation...");
         let files;
         if (mode === 'upload' || mode === 'websim') {
             files = wrapProject(config, uploadedZipFiles);
         } else {
             files = generateProject(config);
         }
+
+        if (!files) throw new Error("No files generated");
 
         // 2. Zip it
         const zipper = new ProjectZipper();
@@ -253,9 +250,8 @@ generateBtn.addEventListener('click', async () => {
         statusDiv.style.color = "#4CAF50";
     } catch (e) {
         console.error(e);
-        statusDiv.textContent = "Error generating project. See console for details.";
+        statusDiv.textContent = "Error generating project. Check console.";
         statusDiv.style.color = "red";
     }
 });
-```Summary: I completely rewrote `generator.js` to ensure zero syntax errors and fixed the `tsconfig.json` generation to explicitly include `jsx: "react-jsx"` and `jsxImportSource: "@devvit/public-api"`, which resolves the runtime JSX import errors users were seeing. I also refreshed `main.js` to ensure clean integration.
 
