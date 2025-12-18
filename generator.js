@@ -15,6 +15,9 @@ function getBaseFiles(config) {
     "typescript": "latest"
   };
 
+  if (config.features?.media) deps["@devvit/media"] = "latest";
+  if (config.features?.multiplayer) deps["@devvit/realtime"] = "latest";
+
   const pkg = {
     name: config.slug || "my-reddit-game",
     version: "0.0.1",
@@ -25,7 +28,8 @@ function getBaseFiles(config) {
       "dev": "devvit upload",
       "build": "devvit build",
       "deploy": "devvit deploy",
-      "setup": "devvit upload"
+      "setup": "devvit upload",
+      "start": "devvit upload"
     },
     dependencies: deps
   };
@@ -43,6 +47,7 @@ permissions:
   - modmail
   - webview
   - modlog
+  ${config.features?.media ? '- media' : ''}
 media:
   images: []
 `;
@@ -78,14 +83,16 @@ This project was generated with Reddit Game Builder.
   };
 }
 
-function getMainTsx(webviewPath) {
-  // Basic Devvit app that renders a webview pointing at our index.html
+function getMainTsx(config, webviewPath) {
+  const features = config.features || {};
+  
   return `import { Devvit } from '@devvit/public-api';
 
 Devvit.configure({
   redditAPI: true,
   redis: true,
-  web: true,
+  ${features.media ? 'media: true,' : ''}
+  ${features.multiplayer ? 'realtime: true,' : ''}
 });
 
 Devvit.addMenuItem({
@@ -94,7 +101,7 @@ Devvit.addMenuItem({
   onPress: async (event, ctx) => {
     await ctx.ui.showWebView({
       id: 'game-webview',
-      title: 'Game',
+      title: '${config.title.replace(/'/g, "\\'") || "Game"}',
       url: '${webviewPath}',
     });
   },
@@ -186,9 +193,10 @@ export function generateProject(config) {
 
   files[`${webRoot}/index.html`] = getTemplateIndexHtml(config, engine);
   files[`${webRoot}/main.js`] = getTemplateMainJs(engine);
-  files['src/main.tsx'] = getMainTsx(`${webRoot}/index.html`);
+  files['src/main.tsx'] = getMainTsx(config, `${webRoot}/index.html`);
+  
+  // Use a self-contained tsconfig to avoid resolution errors with 'extends'
   files['tsconfig.json'] = JSON.stringify({
-    extends: "@devvit/tsconfig/tsconfig.json",
     compilerOptions: {
       target: "ES2020",
       module: "ESNext",
@@ -196,7 +204,9 @@ export function generateProject(config) {
       strict: true,
       jsx: "react-jsx",
       jsxImportSource: "@devvit/public-api",
-      types: ["@devvit/public-api"]
+      types: ["@devvit/public-api"],
+      lib: ["ES2020", "DOM"],
+      skipLibCheck: true
     },
     include: ["src"]
   }, null, 2);
@@ -250,9 +260,10 @@ export function wrapProject(config, filesMap) {
     }
   }
 
-  files['src/main.tsx'] = getMainTsx(entryPath);
+  files['src/main.tsx'] = getMainTsx(config, entryPath);
+  
+  // Use a self-contained tsconfig to avoid resolution errors with 'extends'
   files['tsconfig.json'] = JSON.stringify({
-    extends: "@devvit/tsconfig/tsconfig.json",
     compilerOptions: {
       target: "ES2020",
       module: "ESNext",
@@ -260,7 +271,9 @@ export function wrapProject(config, filesMap) {
       strict: true,
       jsx: "react-jsx",
       jsxImportSource: "@devvit/public-api",
-      types: ["@devvit/public-api"]
+      types: ["@devvit/public-api"],
+      lib: ["ES2020", "DOM"],
+      skipLibCheck: true
     },
     include: ["src"]
   }, null, 2);
